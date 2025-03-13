@@ -1,13 +1,12 @@
 <?php
-require_once __DIR__ . "/../models/User.php";
+require_once __DIR__ . "/../models/UserModel.php";
 
 class UserController
 {
     public function getUsers()
     {
-        $user = new User();
+        $user = new UserModel();
         $users = $user->getUsers();
-
         http_response_code(200);
         echo json_encode(["success" => true, "data" => $users]);
     }
@@ -22,7 +21,7 @@ class UserController
             return;
         }
 
-        $user = new User();
+        $user = new UserModel();
         $result = $user->createUser($data['name'], $data['email']);
 
         http_response_code($result['success'] ? 201 : 500);
@@ -31,16 +30,17 @@ class UserController
 
     public function updateUser()
     {
+        $id = isset($_GET['id']) ? $_GET['id'] : null;
         $data = json_decode(file_get_contents("php://input"), true);
 
-        if (!isset($data['id']) || !isset($data['name']) || !isset($data['email'])) {
+        if (!$id || !isset($data['name']) || !isset($data['email'])) {
             http_response_code(400);
             echo json_encode(["success" => false, "message" => "Missing required fields"]);
             return;
         }
 
-        $user = new User();
-        $result = $user->updateUser($data['id'], $data['name'], $data['email']);
+        $user = new UserModel();
+        $result = $user->updateUser($id, $data['name'], $data['email']);
 
         http_response_code($result['success'] ? 200 : 500);
         echo json_encode($result);
@@ -48,16 +48,16 @@ class UserController
 
     public function deleteUser()
     {
-        $data = json_decode(file_get_contents("php://input"), true);
+        $id = isset($_GET['id']) ? $_GET['id'] : null;
 
-        if (!isset($data['id'])) {
+        if (!$id) {
             http_response_code(400);
             echo json_encode(["success" => false, "message" => "Missing required fields"]);
             return;
         }
 
-        $user = new User();
-        $result = $user->deleteUser($data['id']);
+        $user = new UserModel();
+        $result = $user->deleteUser($id);
 
         http_response_code($result['success'] ? 200 : 500);
         echo json_encode($result);

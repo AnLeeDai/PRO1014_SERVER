@@ -1,22 +1,91 @@
 # PRO1014 - Dự Án 1
 
-**PRO1014** là môn học Dự Án 1 thuộc chương trình học tại FPT Polytechnic.
+## Giới thiệu
+Dự án **PRO1014** bao gồm cả **frontend (client)** và **backend (server)**, được xây dựng để cung cấp một hệ thống website bán điện thoại.
 
-## Cấu trúc dự án
-
+## Cấu trúc thư mục
 ```plaintext
 PRO1014/
-│── server/
+│── client/                # Frontend project
+│   ├── pages/             # Chứa các trang HTML
+│   │   ├── users/
+│   │   │   ├── users.html
+│   ├── public/            # Chứa tài nguyên công khai (ảnh, font, v.v.)
+│   ├── scripts/           # Chứa các tập lệnh JavaScript xử lý logic
+│   │   ├── users/
+│   │   │   ├── user.controller.js
+│   │   │   ├── user.service.js
+│   ├── index.html         # HTML chạy chính
+│   ├── main.css           # Tập tin CSS chính
+│   ├── tailwind.config.js # Cấu hình Tailwind CSS
+│
+│── server/                # Backend project
 │   ├── app/
-│   │   ├── controllers/   # Chứa các controller xử lý request
-│   │   ├── models/        # Chứa các model kết nối database
-│   │   ├── core/          # Chứa các file hệ thống (database, router, config)
+│   │   ├── controllers/   # Chứa controller xử lý request
+│   │   │   ├── UserController.php
+│   │   ├── models/        # Chứa model kết nối database
+│   │   │   ├── User.php
 │   │   ├── routes/        # Định nghĩa các route API
+│   │   │   ├── api.php
+│   ├── config/
+│   │   ├── database.php   # Cấu hình database
+│   ├── public/
 │   │   ├── index.php      # Entry point của API
-│   ├── public/            # Chứa file index.php và các tệp public nếu cần
-│   ├── config/            # Chứa cấu hình database và các settings khác
-│   ├── .env               # Biến môi trường (database, secret key)
-│   ├── composer.json      # Quản lý dependency (nếu dùng Composer)
-│── client/                # Frontend project (React/Vue/... nếu có)
+│
 │── LICENSE
 │── README.md
+```
+
+## Công nghệ sử dụng
+- **Frontend (Client)**:
+    - HTML, CSS, JavaScript
+    - Tailwind CSS
+    - JavaScript Modules
+
+- **Backend (Server)**:
+    - PHP (MVC Pattern)
+    - MySQL
+    - REST API
+
+## Hướng dẫn cài đặt
+
+1. **Clone dự án**
+   ```sh
+   git clone <git@github.com:AnLeeDai/PRO1014.git>
+   cd PRO1014
+   ```
+2. **Cài đặt Frontend**
+   ```sh
+   cd client
+   npm install -D tailwindcss
+   npx tailwindcss init
+   ```
+3. **Cài đặt Backend**
+    - Tạo database MySQL.
+    - Cập nhật thông tin kết nối trong `server/config/database.php`.
+    - Chạy server:
+      ```sh
+      php -S localhost:8000 -t server/public
+      ```
+4. **Chạy dự án**
+    - Mở `client/index.html` trong trình duyệt hoặc chạy bằng VS Code Live Server.
+    - Kiểm tra giao diện và API.
+
+## Hướng dẫn phát triển
+- **Frontend**:
+    - Thêm trang mới vào `client/pages/`.
+    - Thêm logic JavaScript vào `client/scripts/`.
+    - Sử dụng Tailwind CSS để thiết kế UI.
+
+- **Backend**:
+    - Thêm API mới vào `server/routes/api.php`.
+    - Viết controller trong `server/app/controllers/`.
+    - Định nghĩa model trong `server/app/models/`.
+- API routes:
+   - Xem tài liệu API route trong `server/docs.md`.
+
+## Liên hệ
+Nếu có bất kỳ câu hỏi hoặc đóng góp nào, vui lòng liên hệ với ledaian22@gmail.com.
+
+---
+📌 **FPT Polytechnic - PRO1014**
