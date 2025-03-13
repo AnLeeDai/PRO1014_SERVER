@@ -59,10 +59,8 @@ PRO1014/
    cd PRO1014
 
 3. **Cài đặt Frontend**
-
-   cd client
-   npm install -D tailwindcss
-   npx tailwindcss init
+  - Nhúng cdn vào html
+  <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
 
 4. **Cài đặt Backend**
    - Tạo database MySQL.
