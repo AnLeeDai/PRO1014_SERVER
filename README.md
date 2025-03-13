@@ -58,18 +58,19 @@ PRO1014/
    git clone <git@github.com:AnLeeDai/PRO1014.git>
    cd PRO1014
 
-2. **Cài đặt Frontend**
+3. **Cài đặt Frontend**
 
    cd client
    npm install -D tailwindcss
    npx tailwindcss init
 
-3. **Cài đặt Backend**
+4. **Cài đặt Backend**
    - Tạo database MySQL.
    - Cập nhật thông tin kết nối trong `server/config/database.php`.
    - Chạy server:
+   - sử dụng laragon chạy public/index.php hoặc 
      php -S localhost:8000 -t server/public
-4. **Chạy dự án**
+5. **Chạy dự án**
    - Mở `client/index.html` trong trình duyệt hoặc chạy bằng VS Code Live Server.
    - Kiểm tra giao diện và API.
 
