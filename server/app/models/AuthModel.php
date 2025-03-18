@@ -20,8 +20,7 @@ class AuthModel
         $email,
         $phone_number,
         $address
-    ): array
-    {
+    ): array {
         try {
             $query = "INSERT INTO " . $this->table_name .
                 " (username, password, full_name, email, phone_number, address) 
@@ -86,7 +85,7 @@ class AuthModel
                 ];
             }
 
-//            check username in db
+            //            check username in db
             if (!$user) {
                 return [
                     "success" => false,
@@ -98,7 +97,27 @@ class AuthModel
                 "success" => false,
                 "message" => "Password not match"
             ];
+        } catch (Exception $e) {
+            return [
+                "success" => false,
+                "message" => "Database error: " . $e->getMessage()
+            ];
+        }
+    }
 
+    // get all user
+    public function getAllUser(): array
+    {
+        try {
+            $query = "SELECT * FROM " . $this->table_name;
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            return [
+                "success" => true,
+                "data" => $users
+            ];
         } catch (Exception $e) {
             return [
                 "success" => false,
