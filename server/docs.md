@@ -1,5 +1,3 @@
-- USERS
-  - GET `/server/public/?request=get-users`: Lấy danh sách người dùng.
-  - POST `/server/public/?request=post-users`: Thêm người dùng mới.
-  - PUT `/server/public/?request=put-users&id={id}`: Cập nhật thông tin người dùng.
-  - DELETE `/server/public/?request=delete-users&id={id}`: Xóa người dùng.
+# USERS
+- POST `http://localhost/PRO1014/server/public/?request=post-register`: Đăng ký người dùng mới.
+- POST `http://localhost/PRO1014/server/public/?request=post-login`: Đăng nhập.

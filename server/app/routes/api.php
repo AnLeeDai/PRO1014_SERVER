@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . "/../controllers/UserController.php";
+require_once __DIR__ . "/../controllers/AuthController.php";
 
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
@@ -11,15 +11,13 @@ if ($_SERVER['REQUEST_METHOD'] == "OPTIONS") {
     exit();
 }
 
-$request = isset($_GET['request']) ? $_GET['request'] : '';
+$request = $_GET['request'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 
 $routes = [
-    // user routes
-    "get-users" => ["GET" => "UserController@getUsers"],
-    "post-users" => ["POST" => "UserController@createUser"],
-    "put-users" => ["PUT" => "UserController@updateUser"],
-    "delete-users" => ["DELETE" => "UserController@deleteUser"]
+    // register routes
+    "post-register" => ["POST" => "AuthController@handleRegister"],
+    "post-login" => ["POST" => "AuthController@handleLogin"]
 ];
 
 if (isset($routes[$request][$method])) {
