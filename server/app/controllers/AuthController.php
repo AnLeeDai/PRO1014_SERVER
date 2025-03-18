@@ -34,6 +34,14 @@ class AuthController
             exit();
         }
 
+        // validate password length (minimum 6 characters), at least one uppercase letter, one lowercase letter, one number and one special character
+        if (
+            !preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $password)
+        ) {
+            echo json_encode(["success" => false, "message" => "Password must be at least 6 characters, at least one uppercase letter, one lowercase letter, one number and one special character"]);
+            exit();
+        }
+
         // verify phone number in Vietnamese format (optional) && minimum 10 characters
         if (
             !empty($phone_number) &&
