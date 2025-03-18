@@ -52,6 +52,9 @@ class AuthController
         // hash password
         $password = password_hash($password, PASSWORD_DEFAULT, ['cost' => 10]);
 
+        // fake avatar url
+        $avatar_url = "https://picsum.photos/seed/picsum/200/300";
+
         // add user to db and show notification
         $authModel = new AuthModel();
         $result = $authModel->register(
@@ -60,7 +63,8 @@ class AuthController
             $full_name,
             $email,
             $phone_number,
-            $address
+            $address,
+            $avatar_url
         );
 
         if ($result['success'] === false) {
@@ -88,12 +92,9 @@ class AuthController
             exit();
         }
 
-        // generate token for user
-        $generateToken = bin2hex(random_bytes(50));
-
         // get user from db and show notification
         $authModel = new AuthModel();
-        $result = $authModel->login($username, $password, $generateToken);
+        $result = $authModel->login($username, $password);
 
         if ($result['success'] === false) {
             http_response_code(400);

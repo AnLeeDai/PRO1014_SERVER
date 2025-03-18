@@ -19,12 +19,13 @@ class AuthModel
         $full_name,
         $email,
         $phone_number,
-        $address
+        $address,
+        $avatar_url
     ): array {
         try {
             $query = "INSERT INTO " . $this->table_name .
-                " (username, password, full_name, email, phone_number, address) 
-            VALUES (:username, :password, :full_name, :email, :phone_number, :address)";
+                " (username, password, full_name, email, phone_number, address, avatar_url) 
+            VALUES (:username, :password, :full_name, :email, :phone_number, :address, :avatar_url)";
 
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':username', $username);
@@ -33,6 +34,7 @@ class AuthModel
             $stmt->bindParam(':email', $email);
             $stmt->bindParam(':phone_number', $phone_number);
             $stmt->bindParam(':address', $address);
+            $stmt->bindParam(':avatar_url', $avatar_url);
             $stmt->execute();
 
             return [
@@ -56,7 +58,7 @@ class AuthModel
     }
 
     // login user model
-    public function login($username, $password, $token): array
+    public function login($username, $password): array
     {
         try {
             $query = "SELECT * FROM " . $this->table_name . " WHERE username = :username";
@@ -66,17 +68,8 @@ class AuthModel
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user && password_verify($password, $user['password'])) {
-                // save token to db
-                $updateQuery = "UPDATE " . $this->table_name . " 
-                            SET access_token = :access_token 
-                            WHERE user_id = :user_id";
-                $updateStmt = $this->conn->prepare($updateQuery);
-                $updateStmt->bindParam(':access_token', $token);
-                $updateStmt->bindParam(':user_id', $user['user_id']);
-                $updateStmt->execute();
-
-                // update token in user data
-                $user['access_token'] = $token;
+                // remove password from user data
+                unset($user['password']);
 
                 return [
                     "success" => true,
@@ -85,7 +78,7 @@ class AuthModel
                 ];
             }
 
-            //            check username in db
+            // check username in db
             if (!$user) {
                 return [
                     "success" => false,
@@ -96,27 +89,6 @@ class AuthModel
             return [
                 "success" => false,
                 "message" => "Password not match"
-            ];
-        } catch (Exception $e) {
-            return [
-                "success" => false,
-                "message" => "Database error: " . $e->getMessage()
-            ];
-        }
-    }
-
-    // get all user
-    public function getAllUser(): array
-    {
-        try {
-            $query = "SELECT * FROM " . $this->table_name;
-            $stmt = $this->conn->prepare($query);
-            $stmt->execute();
-            $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            return [
-                "success" => true,
-                "data" => $users
             ];
         } catch (Exception $e) {
             return [
