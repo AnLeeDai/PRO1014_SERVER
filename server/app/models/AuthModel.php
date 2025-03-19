@@ -24,27 +24,37 @@ class AuthModel
         string $role
     ): array {
         try {
-            $query = "INSERT INTO {$this->table_name} 
-                (username, password, full_name, email, phone_number, address, avatar_url, role) 
-                VALUES (:username, :password, :full_name, :email, :phone_number, :address, :avatar_url, :role)";
-
-            $stmt = $this->conn->prepare($query);
-            $stmt->execute(compact('username', 'password', 'full_name', 'email', 'phone_number', 'address', 'avatar_url', 'role'));
-
-            // check only create one admin
+            // check if role admin already registered
             if ($role === 'admin') {
-                $query = "SELECT COUNT(*) FROM {$this->table_name} WHERE role = 'admin'";
-                $stmt = $this->conn->prepare($query);
-                $stmt->execute();
-                $adminCount = $stmt->fetchColumn();
+                $queryCheck = "SELECT COUNT(*) FROM {$this->table_name} WHERE role = 'admin'";
+                $stmtCheck = $this->conn->prepare($queryCheck);
+                $stmtCheck->execute();
+                $adminCount = $stmtCheck->fetchColumn();
 
-                if ($adminCount > 1) {
+                if ($adminCount >= 1) {
                     return [
                         "success" => false,
                         "message" => "Cannot create multiple admin users"
                     ];
                 }
             }
+
+            // if role is user insert user data to database
+            $queryInsert = "INSERT INTO {$this->table_name}
+                (username, password, full_name, email, phone_number, address, avatar_url, role)
+                VALUES (:username, :password, :full_name, :email, :phone_number, :address, :avatar_url, :role)";
+
+            $stmtInsert = $this->conn->prepare($queryInsert);
+            $stmtInsert->execute([
+                'username' => $username,
+                'password' => $password,
+                'full_name' => $full_name,
+                'email' => $email,
+                'phone_number' => $phone_number,
+                'address' => $address,
+                'avatar_url' => $avatar_url,
+                'role' => $role
+            ]);
 
             return [
                 "success" => true,
@@ -76,11 +86,12 @@ class AuthModel
 
             // check if user exist and password match
             if ($user && password_verify($password, $user['password'])) {
-                // remove password from user data
-                unset($user['password']);
-
                 // save user data to session
                 $_SESSION['user'] = $user;
+
+                // remove password and user id from user data
+                unset($user['password']);
+                unset($user['user_id']);
 
                 return [
                     "success" => true,
