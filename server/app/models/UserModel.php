@@ -9,7 +9,6 @@ class UserModel
     private static $table_name = "users";
     private $isAdmin;
 
-
     public function __construct()
     {
         $database = new Database();
@@ -17,7 +16,7 @@ class UserModel
         $this->isAdmin = new Middleware();
     }
 
-    // Lấy tất cả user
+    // get all user model
     public function getAllUser(): array
     {
         try {
@@ -33,6 +32,11 @@ class UserModel
             foreach ($users as $key => $user) {
                 unset($users[$key]['password']);
             }
+
+            // remove admin user
+            $users = array_filter($users, function ($user) {
+                return $user['role'] !== 'admin';
+            });
 
             return [
                 "success" => true,

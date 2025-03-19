@@ -12,9 +12,12 @@ class UserController
   }
 
   // get all user controller
-  public function handleGetAllUser()
+  public function handleGetAllUser(): void
   {
+//      call the model function to get all user
     $users = $this->userModel->getAllUser();
+
+//    return the response
     echo json_encode($users);
   }
 }

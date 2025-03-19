@@ -12,43 +12,50 @@ class AuthModel
         $this->conn = $database->getConnection();
     }
 
-    // register user model
+//    register function model
     public function register(
-        $username,
-        $password,
-        $full_name,
-        $email,
-        $phone_number,
-        $address,
-        $avatar_url,
-        $role
-    ): array {
+        string $username,
+        string $password,
+        string $full_name,
+        string $email,
+        string $phone_number,
+        string $address,
+        string $avatar_url,
+        string $role
+    ): array
+    {
         try {
-            $query = "INSERT INTO " . $this->table_name .
-                " (username, password, full_name, email, phone_number, address, avatar_url, role) 
-            VALUES (:username, :password, :full_name, :email, :phone_number, :address, :avatar_url, :role)";
+            $query = "INSERT INTO {$this->table_name} 
+                (username, password, full_name, email, phone_number, address, avatar_url, role) 
+                VALUES (:username, :password, :full_name, :email, :phone_number, :address, :avatar_url, :role)";
 
             $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':username', $username);
-            $stmt->bindParam(':password', $password);
-            $stmt->bindParam(':full_name', $full_name);
-            $stmt->bindParam(':email', $email);
-            $stmt->bindParam(':phone_number', $phone_number);
-            $stmt->bindParam(':address', $address);
-            $stmt->bindParam(':avatar_url', $avatar_url);
-            $stmt->bindParam(':role', $role);
-            $stmt->execute();
+            $stmt->execute(compact('username', 'password', 'full_name', 'email', 'phone_number', 'address', 'avatar_url', 'role'));
+
+//            check only create one admin
+            if ($role === 'admin') {
+                $query = "SELECT COUNT(*) FROM {$this->table_name} WHERE role = 'admin'";
+                $stmt = $this->conn->prepare($query);
+                $stmt->execute();
+                $adminCount = $stmt->fetchColumn();
+
+                if ($adminCount > 1) {
+                    return [
+                        "success" => false,
+                        "message" => "Cannot create multiple admin users"
+                    ];
+                }
+            }
 
             return [
                 "success" => true,
                 "message" => "User registered successfully"
             ];
-        } catch (Exception $e) {
-            // check if username already exists
+        } catch (PDOException $e) {
             if ($e->getCode() == 23000) {
                 return [
                     "success" => false,
-                    "message" => "Username already exists"
+                    "message" => "User already registered"
                 ];
             }
 
@@ -59,26 +66,21 @@ class AuthModel
         }
     }
 
-    // login user model
-    public function login($username, $password): array
+//    login function model
+    public function login(string $username, string $password): array
     {
         try {
-            $query = "SELECT * FROM " . $this->table_name . " WHERE username = :username";
+            $query = "SELECT * FROM {$this->table_name} WHERE username = :username";
             $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':username', $username);
-            $stmt->execute();
+            $stmt->execute(['username' => $username]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
+//            check if user exist and password match
             if ($user && password_verify($password, $user['password'])) {
-                // remove password from user data
+//                remove return password from user data
                 unset($user['password']);
 
-                // start session
-                if (session_status() === PHP_SESSION_NONE) {
-                    session_start();
-                }
-
-                // set session user
+//                save user data to session
                 $_SESSION['user'] = $user;
 
                 return [
@@ -88,19 +90,44 @@ class AuthModel
                 ];
             }
 
-            // check username in db
-            if (!$user) {
+            return [
+                "success" => false,
+                "message" => $user ? "Password does not match" : "Username not found"
+            ];
+        } catch (PDOException $e) {
+            return [
+                "success" => false,
+                "message" => "Database error: " . $e->getMessage()
+            ];
+        }
+    }
+
+//    change password function model
+    public function changePassword(string $username, string $old_password, string $hashed_password): array
+    {
+        try {
+            $query = "SELECT password FROM {$this->table_name} WHERE username = :username";
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute(['username' => $username]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+//            check if user exist and old password match
+            if ($user && password_verify($old_password, $user['password'])) {
+                $query = "UPDATE {$this->table_name} SET password = :password WHERE username = :username";
+                $stmt = $this->conn->prepare($query);
+                $stmt->execute(['password' => $hashed_password, 'username' => $username]);
+
                 return [
-                    "success" => false,
-                    "message" => "Username not found"
+                    "success" => true,
+                    "message" => "Password changed successfully"
                 ];
             }
 
             return [
                 "success" => false,
-                "message" => "Password not match"
+                "message" => "Old password is incorrect"
             ];
-        } catch (Exception $e) {
+        } catch (PDOException $e) {
             return [
                 "success" => false,
                 "message" => "Database error: " . $e->getMessage()
