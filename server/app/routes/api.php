@@ -20,6 +20,7 @@ $routes = [
     "post-register" => ["POST" => "AuthController@handleRegister"],
     "post-login" => ["POST" => "AuthController@handleLogin"],
     "post-change-password" => ["POST" => "AuthController@handleChangePassword"],
+    "post-forgot-password" => ["POST" => "AuthController@handleForgotPassword"],
 
     // user routes
     "get-user" => ["GET" => "UserController@handleGetAllUser"],

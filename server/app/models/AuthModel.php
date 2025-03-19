@@ -12,7 +12,7 @@ class AuthModel
         $this->conn = $database->getConnection();
     }
 
-//    register function model
+    // register function model
     public function register(
         string $username,
         string $password,
@@ -22,8 +22,7 @@ class AuthModel
         string $address,
         string $avatar_url,
         string $role
-    ): array
-    {
+    ): array {
         try {
             $query = "INSERT INTO {$this->table_name} 
                 (username, password, full_name, email, phone_number, address, avatar_url, role) 
@@ -32,7 +31,7 @@ class AuthModel
             $stmt = $this->conn->prepare($query);
             $stmt->execute(compact('username', 'password', 'full_name', 'email', 'phone_number', 'address', 'avatar_url', 'role'));
 
-//            check only create one admin
+            // check only create one admin
             if ($role === 'admin') {
                 $query = "SELECT COUNT(*) FROM {$this->table_name} WHERE role = 'admin'";
                 $stmt = $this->conn->prepare($query);
@@ -66,21 +65,21 @@ class AuthModel
         }
     }
 
-//    login function model
-    public function login(string $username, string $password): array
+    // login function model
+    public function login(string $email, string $password): array
     {
         try {
-            $query = "SELECT * FROM {$this->table_name} WHERE username = :username";
+            $query = "SELECT * FROM {$this->table_name} WHERE email = :email";
             $stmt = $this->conn->prepare($query);
-            $stmt->execute(['username' => $username]);
+            $stmt->execute(['email' => $email]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-//            check if user exist and password match
+            // check if user exist and password match
             if ($user && password_verify($password, $user['password'])) {
-//                remove return password from user data
+                // remove password from user data
                 unset($user['password']);
 
-//                save user data to session
+                // save user data to session
                 $_SESSION['user'] = $user;
 
                 return [
@@ -92,7 +91,7 @@ class AuthModel
 
             return [
                 "success" => false,
-                "message" => $user ? "Password does not match" : "Username not found"
+                "message" => $user ? "Password does not match" : "Email not found"
             ];
         } catch (PDOException $e) {
             return [
@@ -102,20 +101,63 @@ class AuthModel
         }
     }
 
-//    change password function model
-    public function changePassword(string $username, string $old_password, string $hashed_password): array
+    // change password function model
+    public function changePassword(string $email, string $old_password, string $hashed_password): array
     {
         try {
-            $query = "SELECT password FROM {$this->table_name} WHERE username = :username";
+            $query = "SELECT password FROM {$this->table_name} WHERE email = :email";
             $stmt = $this->conn->prepare($query);
-            $stmt->execute(['username' => $username]);
+            $stmt->execute(['email' => $email]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-//            check if user exist and old password match
+            // check if user exist and old password match
             if ($user && password_verify($old_password, $user['password'])) {
-                $query = "UPDATE {$this->table_name} SET password = :password WHERE username = :username";
+                $query = "UPDATE {$this->table_name} SET password = :password WHERE email = :email";
                 $stmt = $this->conn->prepare($query);
-                $stmt->execute(['password' => $hashed_password, 'username' => $username]);
+                $stmt->execute(['password' => $hashed_password, 'email' => $email]);
+
+                return [
+                    "success" => true,
+                    "message" => "Password changed successfully"
+                ];
+            }
+
+            // check if email not found
+            if (!$user) {
+                return [
+                    "success" => false,
+                    "message" => "Email not found"
+                ];
+            }
+
+            return [
+                "success" => false,
+                "message" => "Old password is incorrect"
+            ];
+        } catch (PDOException $e) {
+            return [
+                "success" => false,
+                "message" => "Database error: " . $e->getMessage()
+            ];
+        }
+    }
+
+    // forgot password function model
+    public function forgotPassword(string $email, string $hashed_password): array
+    {
+        try {
+            // get user data by email
+            $query = "SELECT username, email FROM {$this->table_name} WHERE email = :email";
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute(['email' => $email]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // check if user exist
+            if ($user && $email === $user['email']) {
+                // Update new password to database
+                $query = "UPDATE {$this->table_name} SET password = :password WHERE email = :email";
+                $stmt = $this->conn->prepare($query);
+                $stmt->execute(['password' => $hashed_password, 'email' => $email]);
 
                 return [
                     "success" => true,
@@ -125,7 +167,7 @@ class AuthModel
 
             return [
                 "success" => false,
-                "message" => "Old password is incorrect"
+                "message" => "Email not found"
             ];
         } catch (PDOException $e) {
             return [
