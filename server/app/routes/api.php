@@ -16,9 +16,10 @@ $request = $_GET['request'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 
 $routes = [
-    // register routes
+    // authentication routes
     "post-register" => ["POST" => "AuthController@handleRegister"],
     "post-login" => ["POST" => "AuthController@handleLogin"],
+    "post-change-password" => ["POST" => "AuthController@handleChangePassword"],
 
     // user routes
     "get-user" => ["GET" => "UserController@handleGetAllUser"],
