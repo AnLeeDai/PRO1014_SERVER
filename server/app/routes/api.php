@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/../controllers/AuthController.php";
+require_once __DIR__ . "/../controllers/UserController.php";
 
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
@@ -17,7 +18,10 @@ $method = $_SERVER['REQUEST_METHOD'];
 $routes = [
     // register routes
     "post-register" => ["POST" => "AuthController@handleRegister"],
-    "post-login" => ["POST" => "AuthController@handleLogin"]
+    "post-login" => ["POST" => "AuthController@handleLogin"],
+
+    // user routes
+    "get-user" => ["GET" => "UserController@handleGetAllUser"],
 ];
 
 if (isset($routes[$request][$method])) {

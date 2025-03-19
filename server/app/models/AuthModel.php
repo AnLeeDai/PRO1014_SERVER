@@ -20,12 +20,13 @@ class AuthModel
         $email,
         $phone_number,
         $address,
-        $avatar_url
+        $avatar_url,
+        $role
     ): array {
         try {
             $query = "INSERT INTO " . $this->table_name .
-                " (username, password, full_name, email, phone_number, address, avatar_url) 
-            VALUES (:username, :password, :full_name, :email, :phone_number, :address, :avatar_url)";
+                " (username, password, full_name, email, phone_number, address, avatar_url, role) 
+            VALUES (:username, :password, :full_name, :email, :phone_number, :address, :avatar_url, :role)";
 
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':username', $username);
@@ -35,6 +36,7 @@ class AuthModel
             $stmt->bindParam(':phone_number', $phone_number);
             $stmt->bindParam(':address', $address);
             $stmt->bindParam(':avatar_url', $avatar_url);
+            $stmt->bindParam(':role', $role);
             $stmt->execute();
 
             return [
@@ -70,6 +72,14 @@ class AuthModel
             if ($user && password_verify($password, $user['password'])) {
                 // remove password from user data
                 unset($user['password']);
+
+                // start session
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+
+                // set session user
+                $_SESSION['user'] = $user;
 
                 return [
                     "success" => true,
