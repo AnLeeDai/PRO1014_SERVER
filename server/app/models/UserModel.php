@@ -16,31 +16,46 @@ class UserModel
         $this->isAdmin = new Middleware();
     }
 
-    // get all user model
-    public function getAllUser(): array
+    // get all user model 
+    public function getAllUser(int $page = 1, int $limit = 10): array
     {
         try {
             // check admin role
             $this->isAdmin->IsAdmin();
 
-            $query = "SELECT * FROM " . self::$table_name;
+            // set limit and offset
+            $offset = ($page - 1) * $limit;
+
+            // count total user in database
+            $countSql = "SELECT COUNT(*) FROM " . self::$table_name . " WHERE role != 'admin'";
+            $stmtCount = $this->conn->prepare($countSql);
+            $stmtCount->execute();
+            $totalItems = $stmtCount->fetchColumn();
+
+            // get all user, limit by page
+            $query = "SELECT * FROM " . self::$table_name . " 
+                      WHERE role != 'admin'
+                      LIMIT :limit OFFSET :offset";
             $stmt = $this->conn->prepare($query);
+            $stmt->bindValue(':limit', (int) $limit, PDO::PARAM_INT);
+            $stmt->bindValue(':offset', (int) $offset, PDO::PARAM_INT);
             $stmt->execute();
             $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // remove password field
+            //    remove password field
             foreach ($users as $key => $user) {
                 unset($users[$key]['password']);
             }
 
-            // remove admin user
-            $users = array_filter($users, function ($user) {
-                return $user['role'] !== 'admin';
-            });
-
             return [
                 "success" => true,
                 "message" => "Get all user successfully",
+                "pagination" => [
+                    "current_page" => $page,
+                    "limit" => $limit,
+                    "total_items" => (int) $totalItems,
+                    "total_pages" => (int) ceil($totalItems / $limit)
+                ],
                 "data" => $users
             ];
         } catch (PDOException $e) {

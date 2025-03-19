@@ -23,6 +23,8 @@ $routes = [
     "post-forgot-password" => ["POST" => "AuthController@handleForgotPassword"],
 
     // user routes
+    // GET http://localhost/your_project/api/users?page=2
+
     "get-user" => ["GET" => "UserController@handleGetAllUser"],
 ];
 
