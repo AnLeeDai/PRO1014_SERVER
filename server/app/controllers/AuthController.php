@@ -3,6 +3,13 @@ require_once __DIR__ . "/../models/AuthModel.php";
 
 class AuthController
 {
+    private AuthModel $authModel;
+
+    public function __construct()
+    {
+        $this->authModel = new AuthModel();
+    }
+
     // register user controller
     public function handleRegister(): void
     {
@@ -15,6 +22,7 @@ class AuthController
         $email = $data['email'] ?? '';
         $phone_number = $data['phone_number'] ?? '';
         $address = $data['address'] ?? '';
+        $role = $data['role'] ?? 'user';
 
         // validate input not null
         if (empty($username)) {
@@ -64,15 +72,15 @@ class AuthController
         $avatar_url = "https://picsum.photos/seed/picsum/200/300";
 
         // add user to db and show notification
-        $authModel = new AuthModel();
-        $result = $authModel->register(
+        $result = $this->authModel->register(
             $username,
             $password,
             $full_name,
             $email,
             $phone_number,
             $address,
-            $avatar_url
+            $avatar_url,
+            $role
         );
 
         if ($result['success'] === false) {
@@ -101,9 +109,7 @@ class AuthController
         }
 
         // get user from db and show notification
-        $authModel = new AuthModel();
-        $result = $authModel->login($username, $password);
-
+        $result = $this->authModel->login($username, $password);
         if ($result['success'] === false) {
             http_response_code(400);
         } else {
