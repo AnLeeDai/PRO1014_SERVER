@@ -12,7 +12,7 @@ class Middleware
         "success" => false,
         "message" => "Unauthorized: You must login first."
       ]);
-      exit;
+      exit();
     }
 
     // check if user is not admin
@@ -22,6 +22,7 @@ class Middleware
         "success" => false,
         "message" => "Forbidden: You do not have permission to access this resource."
       ]);
+      exit();
     }
   }
 }

@@ -21,9 +21,9 @@ class AuthController
 
     // validate input
     $this->utils->validateInput($data, [
-      'username' => 'Username is required',
-      'password' => 'Password is required',
-      'full_name' => 'Full name is required'
+      'username' => 'Tên đăng nhập không được để trống',
+      'password' => 'Mật khẩu không được để trống',
+      'full_name' => 'Họ tên không được để trống',
     ]);
 
     // get data from request body
@@ -36,32 +36,32 @@ class AuthController
 
     // validate email
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-      $this->utils->respond(["success" => false, "message" => "Invalid email address"], 400);
+      $this->utils->respond(["success" => false, "message" => "Email không đúng định dạng"], 400);
     }
 
     // validate role
     if (!in_array($role, ['user', 'admin'])) {
-      $this->utils->respond(["success" => false, "message" => "Invalid role"], 400);
+      $this->utils->respond(["success" => false, "message" => "Role không đúng"], 400);
     }
 
     // validate username
     if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $username)) {
-      $this->utils->respond(["success" => false, "message" => "Username must be at least 6 characters and not contain special characters"], 400);
+      $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
     }
 
     // validate password
     if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $password)) {
-      $this->utils->respond(["success" => false, "message" => "Password must be at least 6 characters, at least one uppercase letter, one lowercase letter, one number and one special character"], 400);
+      $this->utils->respond(["success" => false, "message" => "Mật khẩu phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"], 400);
     }
 
     // validate phone number
     if (!empty($phone_number) && (!preg_match('/^0[0-9]{9,10}$/', $phone_number) || strlen($phone_number) < 10)) {
-      $this->utils->respond(["success" => false, "message" => "Invalid phone number"], 400);
+      $this->utils->respond(["success" => false, "message" => "Số điện thoại không đúng định dạng"], 400);
     }
 
     // validate password confirm
     if ($password !== $password_confirm) {
-      $this->utils->respond(["success" => false, "message" => "Password confirm not match"], 400);
+      $this->utils->respond(["success" => false, "message" => "Mật khẩu không khớp"], 400);
     }
 
     // hash password
@@ -94,8 +94,8 @@ class AuthController
 
     // validate input
     $this->utils->validateInput($data, [
-      'email' => 'Email is required',
-      'password' => 'Password is required'
+      'email' => 'Email không được để trống',
+      'password' => 'Mật khẩu không được để trống'
     ]);
 
     // call login function from model
@@ -113,15 +113,15 @@ class AuthController
 
     // validate input
     $this->utils->validateInput($data, [
-      'email' => 'Email is required',
-      'old_password' => 'Old password is required',
-      'new_password' => 'New password is required'
+      'email' => 'Email không được để trống',
+      'old_password' => 'Mât khẩu cũ không được để trống',
+      'new_password' => 'Mật khẩu mới không được để trống'
     ]);
 
     // validate new password
     $new_password = trim($data['new_password']);
     if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $new_password)) {
-      $this->utils->respond(["success" => false, "message" => "Password must be at least 6 characters, at least one uppercase letter, one lowercase letter, one number and one special character"], 400);
+      $this->utils->respond(["success" => false, "message" => "Mật khẩu phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"], 400);
     }
 
     // hash new password
@@ -146,20 +146,20 @@ class AuthController
 
     // validate input
     $this->utils->validateInput($data, [
-      'email' => 'Email is required',
-      'new_password' => 'New password is required'
+      'email' => 'Email không được để trống',
+      'new_password' => 'Mật khẩu mới không được để trống'
     ]);
 
     $new_password = trim($data['new_password']) ?? '';
 
     // validate email
     if (!filter_var(trim($data['email']), FILTER_VALIDATE_EMAIL)) {
-      $this->utils->respond(["success" => false, "message" => "Invalid email address"], 400);
+      $this->utils->respond(["success" => false, "message" => "Không tìm thấy Email trên hệ thống"], 400);
     }
 
     // validate new password
     if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $new_password)) {
-      $this->utils->respond(["success" => false, "message" => "Password must be at least 6 characters, at least one uppercase letter, one lowercase letter, one number and one special character"], 400);
+      $this->utils->respond(["success" => false, "message" => "Mật khẩu phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"], 400);
     }
 
     // hash new password
@@ -173,5 +173,20 @@ class AuthController
 
     // return response
     $this->utils->respond($result, $result['success'] ? 200 : 400);
+  }
+
+  // logout controller
+  public function handleLogout(): void
+  {
+    // check if user not logged in
+    if (!isset($_SESSION['user'])) {
+      $this->utils->respond(["success" => false, "message" => "Bạn chưa đăng nhập"], 400);
+    }
+
+    // clear session
+    session_unset();
+    session_destroy();
+    // return response
+    $this->utils->respond(["success" => true, "message" => "Đăng xuất thành công"], 200);
   }
 }

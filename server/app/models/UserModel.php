@@ -6,8 +6,8 @@ require_once __DIR__ . "/../../helper/middleware.php";
 class UserModel
 {
   private ?PDO $conn;
-  private static $table_name = "users";
-  private $isAdmin;
+  private static string $table_name = "users";
+  private Middleware $isAdmin;
 
   public function __construct()
   {
@@ -17,8 +17,12 @@ class UserModel
   }
 
   // get all user model
-  public function getAllUser(int $page = 1, int $limit = 10): array
-  {
+  public function getAllUser(
+    int $page = 1,
+    int $limit = 10,
+    $sort = 'desc',
+    $search = ''
+  ): array {
     try {
       // check admin role
       $this->isAdmin->IsAdmin();
@@ -49,7 +53,7 @@ class UserModel
 
       return [
         "success" => true,
-        "message" => "Get all user successfully",
+        "message" => "Lây dữ liệu thành công",
         "pagination" => [
           "current_page" => $page,
           "limit" => $limit,

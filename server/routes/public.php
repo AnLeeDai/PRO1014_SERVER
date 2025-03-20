@@ -22,6 +22,7 @@ $routes = [
   "post-login" => ["POST" => "AuthController@handleLogin"],
   "post-change-password" => ["POST" => "AuthController@handleChangePassword"],
   "post-forgot-password" => ["POST" => "AuthController@handleForgotPassword"],
+  "get-logout" => ["GET" => "AuthController@handleLogout"],
 ];
 
 if (isset($routes[$request][$method])) {

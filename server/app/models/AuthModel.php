@@ -22,25 +22,37 @@ class AuthModel
     string $address,
     string $avatar_url,
     string $role
-  ): array
-  {
+  ): array {
     try {
-      // check if role admin already registered
+      // check email exist in database
+      $queryCheckEmail = "SELECT COUNT(*) FROM {$this->table_name} WHERE email = :email";
+      $stmtCheckEmail = $this->conn->prepare($queryCheckEmail);
+      $stmtCheckEmail->execute(['email' => $email]);
+      $emailCount = $stmtCheckEmail->fetchColumn();
+
+      if ($emailCount > 0) {
+        return [
+          "success" => false,
+          "message" => "Email đã được sử dụng"
+        ];
+      }
+
+      // check only one admin account
       if ($role === 'admin') {
-        $queryCheck = "SELECT COUNT(*) FROM {$this->table_name} WHERE role = 'admin'";
-        $stmtCheck = $this->conn->prepare($queryCheck);
-        $stmtCheck->execute();
-        $adminCount = $stmtCheck->fetchColumn();
+        $queryCheckAdmin = "SELECT COUNT(*) FROM {$this->table_name} WHERE role = 'admin'";
+        $stmtCheckAdmin = $this->conn->prepare($queryCheckAdmin);
+        $stmtCheckAdmin->execute();
+        $adminCount = $stmtCheckAdmin->fetchColumn();
 
         if ($adminCount >= 1) {
           return [
             "success" => false,
-            "message" => "Cannot create multiple admin users"
+            "message" => "Tài khoản admin đã tồn tại trên hệ thống"
           ];
         }
       }
 
-      // if role is user insert user data to database
+      // if email not exist, insert new user to database
       $queryInsert = "INSERT INTO {$this->table_name}
                 (username, password, full_name, email, phone_number, address, avatar_url, role)
                 VALUES (:username, :password, :full_name, :email, :phone_number, :address, :avatar_url, :role)";
@@ -59,22 +71,16 @@ class AuthModel
 
       return [
         "success" => true,
-        "message" => "User registered successfully"
+        "message" => "Đăng ký tài khoản thành công"
       ];
     } catch (PDOException $e) {
-      if ($e->getCode() == 23000) {
-        return [
-          "success" => false,
-          "message" => "User already registered"
-        ];
-      }
-
       return [
         "success" => false,
         "message" => "Database error: " . $e->getMessage()
       ];
     }
   }
+
 
   // login function model
   public function login(string $email, string $password): array
@@ -97,14 +103,14 @@ class AuthModel
 
         return [
           "success" => true,
-          "message" => "Login successfully",
+          "message" => "Đăng nhập thành công",
           "data" => $user
         ];
       }
 
       return [
         "success" => false,
-        "message" => $user ? "Password does not match" : "Email not found"
+        "message" => $user ? "Mật khẩu không chính xác" : "Email không tồn tại trên hệ thống"
       ];
     } catch (PDOException $e) {
       return [
@@ -131,7 +137,7 @@ class AuthModel
 
         return [
           "success" => true,
-          "message" => "Password changed successfully"
+          "message" => "Đổi mật khẩu thành công"
         ];
       }
 
@@ -139,13 +145,13 @@ class AuthModel
       if (!$user) {
         return [
           "success" => false,
-          "message" => "Email not found"
+          "message" => "Email không tồn tại trên hệ thống"
         ];
       }
 
       return [
         "success" => false,
-        "message" => "Old password is incorrect"
+        "message" => "Mật khẩu cũ không chính xác"
       ];
     } catch (PDOException $e) {
       return [
@@ -174,13 +180,13 @@ class AuthModel
 
         return [
           "success" => true,
-          "message" => "Password changed successfully"
+          "message" => "Đổi mật khẩu thành công",
         ];
       }
 
       return [
         "success" => false,
-        "message" => "Email not found"
+        "message" => "Email không tồn tại trên hệ thống"
       ];
     } catch (PDOException $e) {
       return [
