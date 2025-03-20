@@ -1,6 +1,7 @@
 <?php
-require_once __DIR__ . "/../controllers/AuthController.php";
-require_once __DIR__ . "/../controllers/UserController.php";
+session_start();
+
+require_once __DIR__ . "/../app/controllers/AuthController.php";
 
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
@@ -21,11 +22,6 @@ $routes = [
   "post-login" => ["POST" => "AuthController@handleLogin"],
   "post-change-password" => ["POST" => "AuthController@handleChangePassword"],
   "post-forgot-password" => ["POST" => "AuthController@handleForgotPassword"],
-
-  // user routes
-  // GET http://localhost/your_project/api/users?page=2
-
-  "get-user" => ["GET" => "UserController@handleGetAllUser"],
 ];
 
 if (isset($routes[$request][$method])) {

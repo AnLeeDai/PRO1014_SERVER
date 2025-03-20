@@ -5,7 +5,6 @@ class Middleware
   // check user or admin
   public function IsAdmin()
   {
-
     // check if user is logged in
     if (!isset($_SESSION['user'])) {
       http_response_code(401);
@@ -23,7 +22,6 @@ class Middleware
         "success" => false,
         "message" => "Forbidden: You do not have permission to access this resource."
       ]);
-      exit;
     }
   }
 }
