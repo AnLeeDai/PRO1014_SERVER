@@ -11,19 +11,30 @@ class UserController
     $this->userModel = new UserModel();
   }
 
-  // get all user controller (có phân trang)
+  // Xử lý lấy danh sách user
   public function handleGetAllUser(): void
   {
-    // get page from query params
-    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+    // Lấy dữ liệu từ query params 
+    $page = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT) ?: 1;
+    $limitPerPage = filter_input(INPUT_GET, 'limitPerPage', FILTER_VALIDATE_INT) ?: 10;
 
-    // set limit for pagination
-    $limitPerPage = isset($_GET['limitPerPage']) ? (int)$_GET['limitPerPage'] : 10;
 
-    // call the model function to get all user
-    $users = $this->userModel->getAllUser($page, $limitPerPage);
+    // Lấy dữ liệu từ query params 
+    $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_SPECIAL_CHARS) ?? '';
+    $sort_by = strtolower($_GET['sort_by'] ?? 'desc');
 
-    // return the response
+    // Đảm bảo sort_by chỉ nhận giá trị hợp lệ
+    if (!in_array($sort_by, ['asc', 'desc'])) {
+      $sort_by = 'desc';
+    }
+
+    // Gọi model để lấy danh sách user
+    $users = $this->userModel->getAllUser($page, $limitPerPage, $sort_by, $search);
+
+    // Set HTTP response code dựa trên kết quả
+    http_response_code($users['success'] ? 200 : 400);
+
+    // Trả về JSON response
     echo json_encode($users);
   }
 }

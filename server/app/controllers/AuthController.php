@@ -13,165 +13,153 @@ class AuthController
     $this->utils = new Utils();
   }
 
-  // handle register user controller
+  // Xử lý đăng ký tài khoản
   public function handleRegister(): void
   {
-    // get request body
+    // Nhận dữ liệu từ request
     $data = json_decode(file_get_contents("php://input"), true);
+    if (!$data) {
+      $this->utils->respond(["success" => false, "message" => "Dữ liệu không hợp lệ"], 400);
+    }
 
-    // validate input
+    // Validate dữ liệu đầu vào
     $this->utils->validateInput($data, [
-      'username' => 'Username is required',
-      'password' => 'Password is required',
-      'full_name' => 'Full name is required'
+      'username' => 'Tên đăng nhập không được để trống',
+      'password' => 'Mật khẩu không được để trống',
+      'full_name' => 'Họ tên không được để trống',
+      'password_confirm' => 'Xác nhận mật khẩu không được để trống',
+      'email' => 'Email không được để trống'
     ]);
 
-    // get data from request body
-    $username = trim($data['username']) ?? '';
-    $password = trim($data['password']) ?? '';
-    $password_confirm = trim($data['password_confirm'] ?? '');
-    $email = trim($data['email'] ?? '');
+    // Lấy dữ liệu từ request
+    $username = trim($data['username']);
+    $password = trim($data['password']);
+    $password_confirm = trim($data['password_confirm']);
+    $email = trim($data['email']);
     $phone_number = trim($data['phone_number'] ?? '');
+    $address = trim($data['address'] ?? '');
     $role = trim($data['role'] ?? 'user');
 
-    // validate email
+    // Kiểm tra định dạng email
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-      $this->utils->respond(["success" => false, "message" => "Invalid email address"], 400);
+      $this->utils->respond(["success" => false, "message" => "Email không hợp lệ"], 400);
     }
 
-    // validate role
+    // Kiểm tra role hợp lệ
     if (!in_array($role, ['user', 'admin'])) {
-      $this->utils->respond(["success" => false, "message" => "Invalid role"], 400);
+      $this->utils->respond(["success" => false, "message" => "Role không hợp lệ"], 400);
     }
 
-    // validate username
+    // Kiểm tra định dạng username
     if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $username)) {
-      $this->utils->respond(["success" => false, "message" => "Username must be at least 6 characters and not contain special characters"], 400);
+      $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
     }
 
-    // validate password
+    // Kiểm tra định dạng password
     if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $password)) {
-      $this->utils->respond(["success" => false, "message" => "Password must be at least 6 characters, at least one uppercase letter, one lowercase letter, one number and one special character"], 400);
+      $this->utils->respond(["success" => false, "message" => "Mật khẩu phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"], 400);
     }
 
-    // validate phone number
+    // Kiểm tra số điện thoại hợp lệ
     if (!empty($phone_number) && (!preg_match('/^0[0-9]{9,10}$/', $phone_number) || strlen($phone_number) < 10)) {
-      $this->utils->respond(["success" => false, "message" => "Invalid phone number"], 400);
+      $this->utils->respond(["success" => false, "message" => "Số điện thoại không hợp lệ"], 400);
     }
 
-    // validate password confirm
+    // Kiểm tra xác nhận mật khẩu
     if ($password !== $password_confirm) {
-      $this->utils->respond(["success" => false, "message" => "Password confirm not match"], 400);
+      $this->utils->respond(["success" => false, "message" => "Mật khẩu không khớp"], 400);
     }
 
-    // hash password
-    $hashed_password = password_hash($password, PASSWORD_DEFAULT, ['cost' => 10]);
+    // Mã hóa mật khẩu với cost=12
+    $hashed_password = password_hash($password, PASSWORD_DEFAULT, ['cost' => 12]);
 
-    // set default avatar for user
+    // Avatar mặc định
     $avatar_url = "https://picsum.photos/seed/picsum/200/300";
 
-    // call register function from model
+    // Gọi model để xử lý đăng ký
     $result = $this->authModel->register(
       $username,
       $hashed_password,
       trim($data['full_name']),
       $email,
       $phone_number,
-      trim($data['address'] ?? ''),
+      $address,
       $avatar_url,
       $role
     );
 
-    // return response
+    // Trả về phản hồi
     $this->utils->respond($result, $result['success'] ? 200 : 400);
   }
 
-  // handle login controller
+  // Xử lý đăng nhập
   public function handleLogin(): void
   {
-    // get request body
     $data = json_decode(file_get_contents("php://input"), true);
-
-    // validate input
     $this->utils->validateInput($data, [
-      'email' => 'Email is required',
-      'password' => 'Password is required'
+      'email' => 'Email không được để trống',
+      'password' => 'Mật khẩu không được để trống'
     ]);
 
-    // call login function from model
     $result = $this->authModel->login(trim($data['email']), trim($data['password']));
-
-    // return response
     $this->utils->respond($result, $result['success'] ? 200 : 400);
   }
 
-  // handle change password controller
+  // Xử lý đổi mật khẩu
   public function handleChangePassword(): void
   {
-    // get request body
     $data = json_decode(file_get_contents("php://input"), true);
-
-    // validate input
     $this->utils->validateInput($data, [
-      'email' => 'Email is required',
-      'old_password' => 'Old password is required',
-      'new_password' => 'New password is required'
+      'email' => 'Email không được để trống',
+      'old_password' => 'Mật khẩu cũ không được để trống',
+      'new_password' => 'Mật khẩu mới không được để trống'
     ]);
 
-    // validate new password
     $new_password = trim($data['new_password']);
     if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $new_password)) {
-      $this->utils->respond(["success" => false, "message" => "Password must be at least 6 characters, at least one uppercase letter, one lowercase letter, one number and one special character"], 400);
+      $this->utils->respond(["success" => false, "message" => "Mật khẩu không đúng định dạng"], 400);
     }
 
-    // hash new password
-    $hashed_password = password_hash($new_password, PASSWORD_DEFAULT, ['cost' => 10]);
+    $hashed_password = password_hash($new_password, PASSWORD_DEFAULT, ['cost' => 12]);
 
-    // call change password function from model
     $result = $this->authModel->changePassword(
       trim($data['email']),
       trim($data['old_password']),
       $hashed_password
     );
 
-    // return response
     $this->utils->respond($result, $result['success'] ? 200 : 400);
   }
 
-  // handle forgot password controller
+  // Xử lý quên mật khẩu
   public function handleForgotPassword(): void
   {
-    // get request body
     $data = json_decode(file_get_contents("php://input"), true);
-
-    // validate input
     $this->utils->validateInput($data, [
-      'email' => 'Email is required',
-      'new_password' => 'New password is required'
+      'email' => 'Email không được để trống',
+      'new_password' => 'Mật khẩu mới không được để trống'
     ]);
 
-    $new_password = trim($data['new_password']) ?? '';
-
-    // validate email
+    $new_password = trim($data['new_password']);
     if (!filter_var(trim($data['email']), FILTER_VALIDATE_EMAIL)) {
-      $this->utils->respond(["success" => false, "message" => "Invalid email address"], 400);
+      $this->utils->respond(["success" => false, "message" => "Email không hợp lệ"], 400);
     }
 
-    // validate new password
-    if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $new_password)) {
-      $this->utils->respond(["success" => false, "message" => "Password must be at least 6 characters, at least one uppercase letter, one lowercase letter, one number and one special character"], 400);
-    }
+    $hashed_password = password_hash($new_password, PASSWORD_DEFAULT, ['cost' => 12]);
 
-    // hash new password
-    $hashed_password = password_hash($new_password, PASSWORD_DEFAULT, ['cost' => 10]);
-
-    // call forgot password function from model
-    $result = $this->authModel->forgotPassword(
-      trim($data['email']),
-      $hashed_password
-    );
-
-    // return response
+    $result = $this->authModel->forgotPassword(trim($data['email']), $hashed_password);
     $this->utils->respond($result, $result['success'] ? 200 : 400);
+  }
+
+  // Xử lý đăng xuất
+  public function handleLogout(): void
+  {
+    if (!isset($_SESSION) || !isset($_SESSION['user'])) {
+      $this->utils->respond(["success" => false, "message" => "Bạn chưa đăng nhập"], 400);
+    }
+
+    session_unset();
+    session_destroy();
+    $this->utils->respond(["success" => true, "message" => "Đăng xuất thành công"], 200);
   }
 }

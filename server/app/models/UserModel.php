@@ -6,8 +6,8 @@ require_once __DIR__ . "/../../helper/middleware.php";
 class UserModel
 {
   private ?PDO $conn;
-  private static $table_name = "users";
-  private $isAdmin;
+  private static string $table_name = "users";
+  private Middleware $isAdmin;
 
   public function __construct()
   {
@@ -16,40 +16,76 @@ class UserModel
     $this->isAdmin = new Middleware();
   }
 
-  // get all user model
-  public function getAllUser(int $page = 1, int $limit = 10): array
-  {
+  // Lấy danh sách người dùng có phân trang và sắp xếp
+  public function getAllUser(
+    int $page = 1,
+    int $limit = 10,
+    $sort_by = 'desc',
+    $search = ''
+  ): array {
     try {
-      // check admin role
+      // Kiểm tra quyền admin
       $this->isAdmin->IsAdmin();
 
-      // set limit and offset
+      // Xác định offset cho phân trang
       $offset = ($page - 1) * $limit;
 
-      // count total user in database
-      $countSql = "SELECT COUNT(*) FROM " . self::$table_name . " WHERE role != 'admin'";
+      // Kiểm tra giá trị sort_by hợp lệ (chỉ cho phép 'asc' hoặc 'desc')
+      $sort_by = strtolower(trim($sort_by));
+      $allowedSortValues = ['asc', 'desc'];
+      if (!in_array($sort_by, $allowedSortValues)) {
+        $sort_by = 'desc'; // Mặc định giảm dần
+      }
+
+      // Xây dựng điều kiện WHERE
+      $whereConditions = ["role != 'admin'"];
+      $params = [];
+
+      if (!empty($search)) {
+        $whereConditions[] = "username LIKE :search";
+        $params[':search'] = '%' . $search . '%';
+      }
+
+      // Ghép các điều kiện lại thành câu lệnh SQL
+      $whereClause = " WHERE " . implode(" AND ", $whereConditions);
+
+      // Lấy tổng số lượng người dùng
+      $countSql = "SELECT COUNT(*) FROM " . self::$table_name . $whereClause;
       $stmtCount = $this->conn->prepare($countSql);
+
+      foreach ($params as $key => $value) {
+        $stmtCount->bindValue($key, $value, PDO::PARAM_STR);
+      }
       $stmtCount->execute();
       $totalItems = $stmtCount->fetchColumn();
 
-      // get all user, limit by page
-      $query = "SELECT * FROM " . self::$table_name . " 
-                      WHERE role != 'admin'
-                      LIMIT :limit OFFSET :offset";
+      // Lấy danh sách người dùng theo trang, có sắp xếp
+      $query = "SELECT * FROM " . self::$table_name . $whereClause;
+      $query .= " ORDER BY user_id " . strtoupper($sort_by);
+      $query .= " LIMIT :limit OFFSET :offset";
+
       $stmt = $this->conn->prepare($query);
+      foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value, PDO::PARAM_STR);
+      }
       $stmt->bindValue(':limit', (int)$limit, PDO::PARAM_INT);
       $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
       $stmt->execute();
       $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-      //    remove password field
+      // Xóa trường password trước khi trả về
       foreach ($users as $key => $user) {
         unset($users[$key]['password']);
       }
 
+      // Trả về kết quả JSON
       return [
         "success" => true,
-        "message" => "Get all user successfully",
+        "message" => "Lấy dữ liệu thành công",
+        "filters" => [
+          "search" => $search,
+          "sort_by" => $sort_by
+        ],
         "pagination" => [
           "current_page" => $page,
           "limit" => $limit,
@@ -61,7 +97,7 @@ class UserModel
     } catch (PDOException $e) {
       return [
         "success" => false,
-        "message" => "Error: " . $e->getMessage(),
+        "message" => "Lỗi: " . $e->getMessage(),
         "data" => []
       ];
     }

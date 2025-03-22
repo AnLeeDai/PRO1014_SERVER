@@ -12,7 +12,7 @@ class AuthModel
     $this->conn = $database->getConnection();
   }
 
-  // register function model
+  // Đăng ký người dùng
   public function register(
     string $username,
     string $password,
@@ -22,29 +22,28 @@ class AuthModel
     string $address,
     string $avatar_url,
     string $role
-  ): array
-  {
+  ): array {
     try {
-      // check if role admin already registered
-      if ($role === 'admin') {
-        $queryCheck = "SELECT COUNT(*) FROM {$this->table_name} WHERE role = 'admin'";
-        $stmtCheck = $this->conn->prepare($queryCheck);
-        $stmtCheck->execute();
-        $adminCount = $stmtCheck->fetchColumn();
+      // Kiểm tra email hoặc tài khoản admin đã tồn tại chưa
+      $queryCheck = "SELECT email, role FROM {$this->table_name} WHERE email = :email OR role = 'admin' LIMIT 1";
+      $stmtCheck = $this->conn->prepare($queryCheck);
+      $stmtCheck->bindParam(':email', $email, PDO::PARAM_STR);
+      $stmtCheck->execute();
+      $existingUser = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
-        if ($adminCount >= 1) {
-          return [
-            "success" => false,
-            "message" => "Cannot create multiple admin users"
-          ];
+      if ($existingUser) {
+        if ($existingUser['email'] === $email) {
+          return ["success" => false, "message" => "Email đã được sử dụng"];
+        }
+        if ($role === 'admin' && $existingUser['role'] === 'admin') {
+          return ["success" => false, "message" => "Tài khoản admin đã tồn tại"];
         }
       }
 
-      // if role is user insert user data to database
-      $queryInsert = "INSERT INTO {$this->table_name}
-                (username, password, full_name, email, phone_number, address, avatar_url, role)
-                VALUES (:username, :password, :full_name, :email, :phone_number, :address, :avatar_url, :role)";
-
+      // Chèn dữ liệu mới vào database
+      $queryInsert = "INSERT INTO {$this->table_name} 
+                      (username, password, full_name, email, phone_number, address, avatar_url, role) 
+                      VALUES (:username, :password, :full_name, :email, :phone_number, :address, :avatar_url, :role)";
       $stmtInsert = $this->conn->prepare($queryInsert);
       $stmtInsert->execute([
         'username' => $username,
@@ -57,136 +56,90 @@ class AuthModel
         'role' => $role
       ]);
 
-      return [
-        "success" => true,
-        "message" => "User registered successfully"
-      ];
+      return ["success" => true, "message" => "Đăng ký tài khoản thành công"];
     } catch (PDOException $e) {
-      if ($e->getCode() == 23000) {
-        return [
-          "success" => false,
-          "message" => "User already registered"
-        ];
-      }
-
-      return [
-        "success" => false,
-        "message" => "Database error: " . $e->getMessage()
-      ];
+      return ["success" => false, "message" => "Database error: " . $e->getMessage()];
     }
   }
 
-  // login function model
+  // Đăng nhập người dùng
   public function login(string $email, string $password): array
   {
     try {
-      $query = "SELECT * FROM {$this->table_name} WHERE email = :email";
+      $query = "SELECT * FROM {$this->table_name} WHERE email = :email LIMIT 1";
       $stmt = $this->conn->prepare($query);
-      $stmt->execute(['email' => $email]);
+      $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+      $stmt->execute();
       $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-      // check if user exist and password match
       if ($user && password_verify($password, $user['password'])) {
-        // save user data to session
         $_SESSION['user'] = $user;
+        unset($user['password'], $user['user_id'], $user['role']);
 
-        // remove field
-        unset($user['password']);
-        unset($user['user_id']);
-        unset($user['role']);
-
-        return [
-          "success" => true,
-          "message" => "Login successfully",
-          "data" => $user
-        ];
+        return ["success" => true, "message" => "Đăng nhập thành công", "data" => $user];
       }
 
-      return [
-        "success" => false,
-        "message" => $user ? "Password does not match" : "Email not found"
-      ];
+      return ["success" => false, "message" => $user ? "Mật khẩu không chính xác" : "Email không tồn tại trên hệ thống"];
     } catch (PDOException $e) {
-      return [
-        "success" => false,
-        "message" => "Database error: " . $e->getMessage()
-      ];
+      return ["success" => false, "message" => "Database error: " . $e->getMessage()];
     }
   }
 
-  // change password function model
-  public function changePassword(string $email, string $old_password, string $hashed_password): array
+  // Đổi mật khẩu
+  public function changePassword(string $email, string $old_password, string $new_password): array
   {
     try {
-      $query = "SELECT password FROM {$this->table_name} WHERE email = :email";
+      $query = "SELECT password FROM {$this->table_name} WHERE email = :email LIMIT 1";
       $stmt = $this->conn->prepare($query);
-      $stmt->execute(['email' => $email]);
+      $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+      $stmt->execute();
       $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-      // check if user exist and old password match
-      if ($user && password_verify($old_password, $user['password'])) {
-        $query = "UPDATE {$this->table_name} SET password = :password WHERE email = :email";
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute(['password' => $hashed_password, 'email' => $email]);
-
-        return [
-          "success" => true,
-          "message" => "Password changed successfully"
-        ];
-      }
-
-      // check if email not found
       if (!$user) {
-        return [
-          "success" => false,
-          "message" => "Email not found"
-        ];
+        return ["success" => false, "message" => "Email không tồn tại trên hệ thống"];
       }
 
-      return [
-        "success" => false,
-        "message" => "Old password is incorrect"
-      ];
+      if (!password_verify($old_password, $user['password'])) {
+        return ["success" => false, "message" => "Mật khẩu cũ không chính xác"];
+      }
+
+      // Cập nhật mật khẩu mới
+      $queryUpdate = "UPDATE {$this->table_name} SET password = :password WHERE email = :email";
+      $stmt = $this->conn->prepare($queryUpdate);
+      $stmt->bindParam(':password', $new_password, PDO::PARAM_STR);
+      $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+      $stmt->execute();
+
+      return ["success" => true, "message" => "Đổi mật khẩu thành công"];
     } catch (PDOException $e) {
-      return [
-        "success" => false,
-        "message" => "Database error: " . $e->getMessage()
-      ];
+      return ["success" => false, "message" => "Database error: " . $e->getMessage()];
     }
   }
 
-  // forgot password function model
-  public function forgotPassword(string $email, string $hashed_password): array
+  // Quên mật khẩu
+  public function forgotPassword(string $email, string $new_password): array
   {
     try {
-      // get user data by email
-      $query = "SELECT username, email FROM {$this->table_name} WHERE email = :email";
+      $query = "SELECT email FROM {$this->table_name} WHERE email = :email LIMIT 1";
       $stmt = $this->conn->prepare($query);
-      $stmt->execute(['email' => $email]);
+      $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+      $stmt->execute();
       $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-      // check if user exist
-      if ($user && $email === $user['email']) {
-        // Update new password to database
-        $query = "UPDATE {$this->table_name} SET password = :password WHERE email = :email";
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute(['password' => $hashed_password, 'email' => $email]);
-
-        return [
-          "success" => true,
-          "message" => "Password changed successfully"
-        ];
+      if (!$user) {
+        return ["success" => false, "message" => "Email không tồn tại trên hệ thống"];
       }
 
-      return [
-        "success" => false,
-        "message" => "Email not found"
-      ];
+      // Cập nhật mật khẩu
+      $queryUpdate = "UPDATE {$this->table_name} SET password = :password WHERE email = :email";
+      $stmt = $this->conn->prepare($queryUpdate);
+      $stmt->bindParam(':password', $new_password, PDO::PARAM_STR);
+      $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+      $stmt->execute();
+
+      return ["success" => true, "message" => "Đổi mật khẩu thành công"];
     } catch (PDOException $e) {
-      return [
-        "success" => false,
-        "message" => "Database error: " . $e->getMessage()
-      ];
+      return ["success" => false, "message" => "Database error: " . $e->getMessage()];
     }
   }
 }
