@@ -17,8 +17,7 @@ PRO1014/
 │   ├── config/
 │   │   ├── database.php   # Cấu hình database
 │   ├── routes/
-│   │   ├── public.php      # Entry point của API với các route public
-│   |   ├── private.php
+│   │   ├── index.php      # Route api
 │── LICENSE
 │── README.md
 ```
@@ -42,14 +41,14 @@ PRO1014/
    - Cập nhật thông tin kết nối trong `server/config/database.php`.
    - Chạy server:
    - sử dụng laragon chạy public/index.php hoặc
-     php -S localhost:8000 -t routes/public.php hoặc routes/private.php
+     php -S localhost:8000 -t routes/index.php
 3. **Chạy dự án**
    - Mở `routes/public.php` hoặc `routes/private.php`.
 
 ## Hướng dẫn phát triển
 
 - **Backend**:
-  - Thêm đường dẫn API mới vào `server/routes/api.php`.
+  - Thêm đường dẫn API mới vào `server/routes/index.php`.
   - Viết controller trong `server/app/controllers/`.
   - Định nghĩa model trong `server/app/models/`.
 - API routes:
