@@ -23,6 +23,8 @@ $routes = [
   "post-change-password" => ["POST" => "AuthController@handleChangePassword"],
   "post-forgot-password" => ["POST" => "AuthController@handleForgotPassword"],
   "get-logout" => ["GET" => "AuthController@handleLogout"],
+  "post-admin-change-password" => ["POST" => "AuthController@handleAdminPasswordChange"],
+  "get-password-requests" => ["GET" => "AuthController@listPendingPasswordRequests"],
 
   // User routes
   "get-user" => ["GET" => "UserController@handleGetAllUser"],
