@@ -2,18 +2,22 @@
 
 require_once __DIR__ . "/../controllers/AuthController.php";
 require_once __DIR__ . "/../../helper/middleware.php";
+require_once __DIR__ . "/../../helper/cors.php";
+require_once __DIR__ . "/../../helper/utils.php";
 
 class UserModel
 {
   private ?PDO $conn;
   private static string $table_name = "users";
   private Middleware $isAdmin;
+  private Utils $utils;
 
   public function __construct()
   {
     $database = new Database();
     $this->conn = $database->getConnection();
     $this->isAdmin = new Middleware();
+    $this->utils = new Utils();
   }
 
   // Lấy danh sách người dùng có phân trang và sắp xếp
@@ -79,27 +83,23 @@ class UserModel
       }
 
       // Trả về kết quả JSON
-      return [
-        "success" => true,
-        "message" => "Lấy dữ liệu thành công",
-        "filters" => [
+      return $this->utils->buildPaginatedResponse(
+        true,
+        "Lấy dữ liệu thành công",
+        $users,
+        $page,
+        $limit,
+        (int)$totalItems,
+        [
           "search" => $search,
           "sort_by" => $sort_by
-        ],
-        "pagination" => [
-          "current_page" => $page,
-          "limit" => $limit,
-          "total_items" => (int)$totalItems,
-          "total_pages" => (int)ceil($totalItems / $limit)
-        ],
-        "data" => $users
-      ];
+        ]
+      );
     } catch (PDOException $e) {
-      return [
-        "success" => false,
-        "message" => "Lỗi: " . $e->getMessage(),
-        "data" => []
-      ];
+      return $this->utils->buildPaginatedResponse(
+        false,
+        "Database error: " . $e->getMessage()
+      );
     }
   }
 }

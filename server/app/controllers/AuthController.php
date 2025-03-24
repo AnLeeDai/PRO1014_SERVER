@@ -135,19 +135,60 @@ class AuthController
   public function handleForgotPassword(): void
   {
     $data = json_decode(file_get_contents("php://input"), true);
+
     $this->utils->validateInput($data, [
       'email' => 'Email không được để trống',
       'new_password' => 'Mật khẩu mới không được để trống'
     ]);
 
+    $email = trim($data['email']);
     $new_password = trim($data['new_password']);
-    if (!filter_var(trim($data['email']), FILTER_VALIDATE_EMAIL)) {
+
+    // Kiểm tra định dạng email
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
       $this->utils->respond(["success" => false, "message" => "Email không hợp lệ"], 400);
+      return;
     }
 
+    // Kiểm tra định dạng password
+    if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $new_password)) {
+      $this->utils->respond(["success" => false, "message" => "Mật khẩu phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"], 400);
+    }
+
+    // Hash mật khẩu mới trước khi lưu vào yêu cầu
     $hashed_password = password_hash($new_password, PASSWORD_DEFAULT, ['cost' => 12]);
 
-    $result = $this->authModel->forgotPassword(trim($data['email']), $hashed_password);
+    $result = $this->authModel->forgotPassword($email, $hashed_password);
+
+    $this->utils->respond($result, $result['success'] ? 200 : 400);
+  }
+
+  // danh sách yêu cầu đổi mật khẩu 
+  public function listPendingPasswordRequests(): void
+  {
+    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+    $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+    $sort_by = $_GET['sort_by'] ?? 'desc';
+    $search = $_GET['search'] ?? '';
+    $status = $_GET['status'] ?? 'pending';
+
+    $result = $this->authModel->getPasswordRequests($page, $limit, $sort_by, $search, $status);
+    $this->utils->respond($result, $result['success'] ? 200 : 400);
+  }
+
+  // admin xác nhận yêu cầu đổi mật khẩu
+  public function handleAdminPasswordChange(): void
+  {
+    $data = json_decode(file_get_contents("php://input"), true);
+
+    if (!isset($data['request_id'])) {
+      $this->utils->respond(["success" => false, "message" => "Thiếu ID yêu cầu"], 400);
+      return;
+    }
+
+    $request_id = (int)$data['request_id'];
+
+    $result = $this->authModel->adminChangePassword($request_id);
     $this->utils->respond($result, $result['success'] ? 200 : 400);
   }
 

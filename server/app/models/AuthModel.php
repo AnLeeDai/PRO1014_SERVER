@@ -1,15 +1,21 @@
 <?php
 require_once __DIR__ . "/../../config/database.php";
+require_once __DIR__ . "/../../helper/middleware.php";
+require_once __DIR__ . "/../../helper/utils.php";
 
 class AuthModel
 {
   private ?PDO $conn;
   private string $table_name = "users";
+  private Middleware $isAdmin;
+  private Utils $utils;
 
   public function __construct()
   {
     $database = new Database();
     $this->conn = $database->getConnection();
+    $this->isAdmin = new Middleware();
+    $this->utils = new Utils();
   }
 
   // Đăng ký người dùng
@@ -120,6 +126,7 @@ class AuthModel
   public function forgotPassword(string $email, string $new_password): array
   {
     try {
+      // Kiểm tra email có tồn tại
       $query = "SELECT email FROM {$this->table_name} WHERE email = :email LIMIT 1";
       $stmt = $this->conn->prepare($query);
       $stmt->bindParam(':email', $email, PDO::PARAM_STR);
@@ -130,14 +137,133 @@ class AuthModel
         return ["success" => false, "message" => "Email không tồn tại trên hệ thống"];
       }
 
-      // Cập nhật mật khẩu
-      $queryUpdate = "UPDATE {$this->table_name} SET password = :password WHERE email = :email";
-      $stmt = $this->conn->prepare($queryUpdate);
-      $stmt->bindParam(':password', $new_password, PDO::PARAM_STR);
+      // Thêm yêu cầu đổi mật khẩu vào bảng
+      $queryInsert = "INSERT INTO password_requests (email, new_password) VALUES (:email, :new_password)";
+      $stmt = $this->conn->prepare($queryInsert);
       $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+      $stmt->bindParam(':new_password', $new_password, PDO::PARAM_STR);
       $stmt->execute();
 
-      return ["success" => true, "message" => "Đổi mật khẩu thành công"];
+      return ["success" => true, "message" => "Yêu cầu đổi mật khẩu đã được ghi nhận, admin sẽ xử lý sơm nhất có thể"];
+    } catch (PDOException $e) {
+      return ["success" => false, "message" => "Database error: " . $e->getMessage()];
+    }
+  }
+
+  // Lấy danh sách yêu cầu đổi mật khẩu đang chờ xử lý
+  public function getPasswordRequests(
+    int $page = 1,
+    int $limit = 10,
+    string $sort_by = 'desc',
+    string $search = '',
+    string $status = 'pending'
+  ): array {
+    try {
+      $this->isAdmin->IsAdmin();
+
+      $offset = ($page - 1) * $limit;
+
+      // Validate sort_by
+      $sort_by = strtolower(trim($sort_by));
+      $allowedSortValues = ['asc', 'desc'];
+      if (!in_array($sort_by, $allowedSortValues)) {
+        $sort_by = 'desc';
+      }
+
+      // Validate status
+      $status = strtolower($status);
+      $allowedStatuses = ['pending', 'done'];
+      if (!in_array($status, $allowedStatuses)) {
+        $status = 'pending';
+      }
+
+      // WHERE condition
+      $whereConditions = ["status = :status"];
+      $params = [':status' => $status];
+
+      if (!empty($search)) {
+        $whereConditions[] = "email LIKE :search";
+        $params[':search'] = '%' . $search . '%';
+      }
+
+      $whereClause = " WHERE " . implode(" AND ", $whereConditions);
+
+      // Count total items
+      $countQuery = "SELECT COUNT(*) FROM password_requests" . $whereClause;
+      $stmtCount = $this->conn->prepare($countQuery);
+      foreach ($params as $key => $value) {
+        $stmtCount->bindValue($key, $value, PDO::PARAM_STR);
+      }
+      $stmtCount->execute();
+      $totalItems = $stmtCount->fetchColumn();
+
+      // Get list
+      $query = "SELECT id, email, created_at, status
+                FROM password_requests" . $whereClause .
+        " ORDER BY created_at " . strtoupper($sort_by) .
+        " LIMIT :limit OFFSET :offset";
+
+      $stmt = $this->conn->prepare($query);
+      foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value, PDO::PARAM_STR);
+      }
+      $stmt->bindValue(':limit', (int)$limit, PDO::PARAM_INT);
+      $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
+      $stmt->execute();
+      $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+      return $this->utils->buildPaginatedResponse(
+        true,
+        "Lấy dữ liệu thành công",
+        $requests,
+        $page,
+        $limit,
+        (int)$totalItems,
+        [
+          "search" => $search,
+          "sort_by" => $sort_by,
+          "status" => $status
+        ]
+      );
+    } catch (PDOException $e) {
+      return $this->utils->buildPaginatedResponse(
+        false,
+        "Database error: " . $e->getMessage()
+      );
+    }
+  }
+
+  // Xử lý yêu cầu đổi mật khẩu của admin
+  public function adminChangePassword(int $request_id): array
+  {
+    try {
+      $this->isAdmin->IsAdmin();
+
+      // Lấy request từ bảng
+      $query = "SELECT email, new_password FROM password_requests WHERE id = :id AND status = 'pending'";
+      $stmt = $this->conn->prepare($query);
+      $stmt->bindParam(':id', $request_id, PDO::PARAM_INT);
+      $stmt->execute();
+      $request = $stmt->fetch(PDO::FETCH_ASSOC);
+
+      if (!$request) {
+        return ["success" => false, "message" => "Yêu cầu không tồn tại hoặc đã được xử lý"];
+      }
+
+      // Cập nhật mật khẩu người dùng
+      $queryUpdate = "UPDATE {$this->table_name} SET password = :password WHERE email = :email";
+      $stmt = $this->conn->prepare($queryUpdate);
+      $stmt->bindParam(':password', $request['new_password'], PDO::PARAM_STR);
+      $stmt->bindParam(':email', $request['email'], PDO::PARAM_STR);
+      $stmt->execute();
+
+      // Cập nhật trạng thái yêu cầu
+      $queryDone = "UPDATE password_requests SET status = 'done' WHERE id = :id";
+      $stmt = $this->conn->prepare($queryDone);
+      $stmt->bindParam(':id', $request_id, PDO::PARAM_INT);
+      $stmt->execute();
+
+      return ["success" => true, "message" => "Đã cập nhật mật khẩu thành công và hoàn tất yêu cầu"];
     } catch (PDOException $e) {
       return ["success" => false, "message" => "Database error: " . $e->getMessage()];
     }

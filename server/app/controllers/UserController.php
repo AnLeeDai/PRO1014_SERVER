@@ -1,14 +1,17 @@
 <?php
 
 require_once __DIR__ . "/../models/UserModel.php";
+require_once __DIR__ . "/../../helper/utils.php";
 
 class UserController
 {
   private UserModel $userModel;
+  private Utils $utils;
 
   public function __construct()
   {
     $this->userModel = new UserModel();
+    $this->utils = new Utils();
   }
 
   // Xử lý lấy danh sách user
@@ -31,8 +34,7 @@ class UserController
     // Gọi model để lấy danh sách user
     $users = $this->userModel->getAllUser($page, $limitPerPage, $sort_by, $search);
 
-    // Set HTTP response code dựa trên kết quả
-    http_response_code($users['success'] ? 200 : 400);
+    $this->utils->respond($users, $users['success'] ? 200 : 400);
 
     // Trả về JSON response
     echo json_encode($users);

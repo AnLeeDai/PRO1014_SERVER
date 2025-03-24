@@ -17,4 +17,42 @@ class Utils
     http_response_code($status);
     die(json_encode($data));
   }
+
+  public function buildPaginatedResponse(
+    bool $success,
+    string $message,
+    array $data = [],
+    int $page = 1,
+    int $limit = 10,
+    int $totalItems = 0,
+    array $filters = []
+  ): array {
+    if (!$success) {
+      return [
+        "success" => false,
+        "message" => $message,
+        "filters" => [],
+        "pagination" => [
+          "current_page" => $page,
+          "limit" => $limit,
+          "total_items" => 0,
+          "total_pages" => 0
+        ],
+        "data" => []
+      ];
+    }
+
+    return [
+      "success" => true,
+      "message" => $message,
+      "filters" => $filters,
+      "pagination" => [
+        "current_page" => $page,
+        "limit" => $limit,
+        "total_items" => $totalItems,
+        "total_pages" => (int)ceil($totalItems / $limit)
+      ],
+      "data" => $data
+    ];
+  }
 }
