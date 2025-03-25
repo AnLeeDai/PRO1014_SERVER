@@ -28,6 +28,12 @@ $routes = [
 
   // User routes
   "get-user" => ["GET" => "UserController@handleGetAllUser"],
+
+  // Category routes
+  "get-category" => ["GET" => "CategoryController@handleGetAllCategory"],
+  "post-category" => ['POST' => 'CategoryController@handleAddCategory'],
+  "put-category" => ['PUT' => 'CategoryController@handleEditCategory'],
+  "delete-category" => ['DELETE' => 'CategoryController@handleDeleteCategory'],
 ];
 
 // Kiểm tra route hợp lệ
