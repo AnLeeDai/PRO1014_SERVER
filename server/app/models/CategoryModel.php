@@ -2,7 +2,6 @@
 
 require_once __DIR__ . "/../../config/database.php";
 require_once __DIR__ . "/../../helper/middleware.php";
-require_once __DIR__ . "/../../helper/cors.php";
 require_once __DIR__ . "/../../helper/utils.php";
 
 class CategoryModel

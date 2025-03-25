@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . "/../models/AuthModel.php";
 require_once __DIR__ . "/../../helper/utils.php";
+require_once __DIR__ . "/../../helper/cors.php";
 
 class AuthController
 {
@@ -196,11 +197,19 @@ class AuthController
   public function handleLogout(): void
   {
     if (!isset($_SESSION) || !isset($_SESSION['user'])) {
-      $this->utils->respond(["success" => false, "message" => "Bạn chưa đăng nhập"], 400);
+      $this->utils->respond(
+        ["success" => false, "message" => "Bạn chưa đăng nhập"],
+        400
+      );
+      return;
     }
 
     session_unset();
     session_destroy();
-    $this->utils->respond(["success" => true, "message" => "Đăng xuất thành công"], 200);
+
+    $this->utils->respond(
+      ["success" => true, "message" => "Đăng xuất thành công"],
+      200
+    );
   }
 }
