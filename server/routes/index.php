@@ -1,4 +1,13 @@
 <?php
+session_set_cookie_params([
+  'path' => '/',
+  'secure' => true,
+  'httponly' => true,
+  'samesite' => 'None'
+]);
+
+session_name('PHPSESSID');
+
 session_start();
 
 require_once __DIR__ . "../../helper/cors.php";
@@ -22,12 +31,18 @@ $routes = [
   "post-login" => ["POST" => "AuthController@handleLogin"],
   "post-change-password" => ["POST" => "AuthController@handleChangePassword"],
   "post-forgot-password" => ["POST" => "AuthController@handleForgotPassword"],
-  "get-logout" => ["GET" => "AuthController@handleLogout"],
+  "post-logout" => ["POST" => "AuthController@handleLogout"],
   "post-admin-change-password" => ["POST" => "AuthController@handleAdminPasswordChange"],
   "get-password-requests" => ["GET" => "AuthController@listPendingPasswordRequests"],
 
   // User routes
   "get-user" => ["GET" => "UserController@handleGetAllUser"],
+
+  // Category routes
+  "get-category" => ["GET" => "CategoryController@handleGetAllCategory"],
+  "post-category" => ['POST' => 'CategoryController@handleAddCategory'],
+  "put-category" => ['PUT' => 'CategoryController@handleEditCategory'],
+  "delete-category" => ['DELETE' => 'CategoryController@handleDeleteCategory'],
 ];
 
 // Kiểm tra route hợp lệ

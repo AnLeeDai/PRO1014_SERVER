@@ -80,7 +80,7 @@ class AuthModel
 
       if ($user && password_verify($password, $user['password'])) {
         $_SESSION['user'] = $user;
-        unset($user['password'], $user['user_id'], $user['role']);
+        unset($user['password'], $user['user_id']);
 
         return ["success" => true, "message" => "Đăng nhập thành công", "data" => $user];
       }
