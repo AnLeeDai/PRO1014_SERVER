@@ -43,7 +43,7 @@ class CategoryController
 
     // 1) Kiểm tra xem có trường category_name không
     if (!isset($data['category_name'])) {
-      $error = $this->utils->buildPaginatedResponse(false, "Thiếu trường category_name");
+      $error = $this->utils->buildResponse(false, "Thiếu trường category_name");
       $this->utils->respond($error, 400);
       echo json_encode($error);
       return;
@@ -51,7 +51,7 @@ class CategoryController
 
     // 2) Kiểm tra nội dung không được rỗng
     if (empty(trim($data['category_name']))) {
-      $error = $this->utils->buildPaginatedResponse(false, "category_name không được để trống");
+      $error = $this->utils->buildResponse(false, "category_name không được để trống");
       $this->utils->respond($error, 400);
       echo json_encode($error);
       return;
@@ -75,7 +75,7 @@ class CategoryController
 
     // Kiểm tra category_id có hợp lệ không
     if (empty($category_id) || $category_id <= 0) {
-      $error = $this->utils->buildPaginatedResponse(false, "Thiếu hoặc sai định dạng category_id");
+      $error = $this->utils->buildResponse(false, "Thiếu hoặc sai định dạng category_id");
       $this->utils->respond($error, 400);
       echo json_encode($error);
       return;
@@ -86,7 +86,7 @@ class CategoryController
 
     // 1) Kiểm tra trường category_name (có thể tuỳ ý bắt buộc hay không)
     if (!isset($data['category_name'])) {
-      $error = $this->utils->buildPaginatedResponse(false, "Thiếu trường category_name");
+      $error = $this->utils->buildResponse(false, "Thiếu trường category_name");
       $this->utils->respond($error, 400);
       echo json_encode($error);
       return;
@@ -94,7 +94,7 @@ class CategoryController
 
     // 2) Kiểm tra nội dung không được rỗng
     if (empty(trim($data['category_name']))) {
-      $error = $this->utils->buildPaginatedResponse(false, "category_name không được để trống");
+      $error = $this->utils->buildResponse(false, "category_name không được để trống");
       $this->utils->respond($error, 400);
       echo json_encode($error);
       return;
@@ -112,7 +112,7 @@ class CategoryController
   {
     $category_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
     if (!$category_id || $category_id <= 0) {
-      $error = $this->utils->buildPaginatedResponse(false, "Thiếu hoặc sai định dạng category_id");
+      $error = $this->utils->buildResponse(false, "Thiếu hoặc sai định dạng category_id");
       $this->utils->respond($error, 400);
       echo json_encode($error);
       return;

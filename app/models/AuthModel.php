@@ -28,7 +28,8 @@ class AuthModel
     string $address,
     string $avatar_url,
     string $role
-  ): array {
+  ): array
+  {
     try {
       // Kiểm tra email hoặc tài khoản admin đã tồn tại chưa
       $queryCheck = "SELECT email, role FROM {$this->table_name} WHERE email = :email OR role = 'admin' LIMIT 1";
@@ -69,12 +70,12 @@ class AuthModel
   }
 
   // Đăng nhập người dùng
-  public function login(string $email, string $password): array
+  public function login(string $username, string $password): array
   {
     try {
-      $query = "SELECT * FROM {$this->table_name} WHERE email = :email LIMIT 1";
+      $query = "SELECT * FROM {$this->table_name} WHERE username = :username LIMIT 1";
       $stmt = $this->conn->prepare($query);
-      $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+      $stmt->bindParam(':username', $username, PDO::PARAM_STR);
       $stmt->execute();
       $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -85,24 +86,24 @@ class AuthModel
         return ["success" => true, "message" => "Đăng nhập thành công", "data" => $user];
       }
 
-      return ["success" => false, "message" => $user ? "Mật khẩu không chính xác" : "Email không tồn tại trên hệ thống"];
+      return ["success" => false, "message" => $user ? "Mật khẩu không chính xác" : "Username không tồn tại trên hệ thống"];
     } catch (PDOException $e) {
       return ["success" => false, "message" => "Database error: " . $e->getMessage()];
     }
   }
 
   // Đổi mật khẩu
-  public function changePassword(string $email, string $old_password, string $new_password): array
+  public function changePassword(string $username, string $old_password, string $new_password): array
   {
     try {
-      $query = "SELECT password FROM {$this->table_name} WHERE email = :email LIMIT 1";
+      $query = "SELECT password FROM {$this->table_name} WHERE username = :username LIMIT 1";
       $stmt = $this->conn->prepare($query);
-      $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+      $stmt->bindParam(':username', $username, PDO::PARAM_STR);
       $stmt->execute();
       $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
       if (!$user) {
-        return ["success" => false, "message" => "Email không tồn tại trên hệ thống"];
+        return ["success" => false, "message" => "Username không tồn tại trên hệ thống"];
       }
 
       if (!password_verify($old_password, $user['password'])) {
@@ -110,10 +111,10 @@ class AuthModel
       }
 
       // Cập nhật mật khẩu mới
-      $queryUpdate = "UPDATE {$this->table_name} SET password = :password WHERE email = :email";
+      $queryUpdate = "UPDATE {$this->table_name} SET password = :password WHERE username = :username";
       $stmt = $this->conn->prepare($queryUpdate);
       $stmt->bindParam(':password', $new_password, PDO::PARAM_STR);
-      $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+      $stmt->bindParam(':username', $username, PDO::PARAM_STR);
       $stmt->execute();
 
       return ["success" => true, "message" => "Đổi mật khẩu thành công"];
@@ -123,23 +124,35 @@ class AuthModel
   }
 
   // Quên mật khẩu
-  public function forgotPassword(string $email, string $new_password): array
+  public function forgotPassword(string $username, string $email, string $new_password): array
   {
     try {
-      // Kiểm tra email có tồn tại
-      $query = "SELECT email FROM {$this->table_name} WHERE email = :email LIMIT 1";
-      $stmt = $this->conn->prepare($query);
-      $stmt->bindParam(':email', $email, PDO::PARAM_STR);
-      $stmt->execute();
-      $user = $stmt->fetch(PDO::FETCH_ASSOC);
+      // Kiểm tra username có tồn tại
+      $queryUsername = "SELECT username FROM {$this->table_name} WHERE username = :username LIMIT 1";
+      $stmtUsername = $this->conn->prepare($queryUsername);
+      $stmtUsername->bindParam(':username', $username, PDO::PARAM_STR);
+      $stmtUsername->execute();
+      $userUsername = $stmtUsername->fetch(PDO::FETCH_ASSOC);
 
-      if (!$user) {
+      if (!$userUsername) {
+        return ["success" => false, "message" => "Username không tồn tại trên hệ thống"];
+      }
+
+      // Kiểm tra email có tồn tại
+      $queryEmail = "SELECT email FROM {$this->table_name} WHERE email = :email LIMIT 1";
+      $stmtEmail = $this->conn->prepare($queryEmail);
+      $stmtEmail->bindParam(':email', $email, PDO::PARAM_STR);
+      $stmtEmail->execute();
+      $userEmail = $stmtEmail->fetch(PDO::FETCH_ASSOC);
+
+      if (!$userEmail) {
         return ["success" => false, "message" => "Email không tồn tại trên hệ thống"];
       }
 
       // Thêm yêu cầu đổi mật khẩu vào bảng
-      $queryInsert = "INSERT INTO password_requests (email, new_password) VALUES (:email, :new_password)";
+      $queryInsert = "INSERT INTO password_requests (username, email, new_password) VALUES (:username, :email, :new_password)";
       $stmt = $this->conn->prepare($queryInsert);
+      $stmt->bindParam(':username', $username, PDO::PARAM_STR);
       $stmt->bindParam(':email', $email, PDO::PARAM_STR);
       $stmt->bindParam(':new_password', $new_password, PDO::PARAM_STR);
       $stmt->execute();
@@ -152,12 +165,13 @@ class AuthModel
 
   // Lấy danh sách yêu cầu đổi mật khẩu đang chờ xử lý
   public function getPasswordRequests(
-    int $page = 1,
-    int $limit = 10,
+    int    $page = 1,
+    int    $limit = 10,
     string $sort_by = 'desc',
     string $search = '',
     string $status = 'pending'
-  ): array {
+  ): array
+  {
     try {
       $this->isAdmin->IsAdmin();
 
@@ -212,7 +226,7 @@ class AuthModel
       $stmt->execute();
       $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-      return $this->utils->buildPaginatedResponse(
+      return $this->utils->buildResponse(
         true,
         "Lấy dữ liệu thành công",
         $requests,
@@ -226,7 +240,7 @@ class AuthModel
         ]
       );
     } catch (PDOException $e) {
-      return $this->utils->buildPaginatedResponse(
+      return $this->utils->buildResponse(
         false,
         "Database error: " . $e->getMessage()
       );

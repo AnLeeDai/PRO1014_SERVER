@@ -37,6 +37,7 @@ $routes = [
 
   // User routes
   "get-user" => ["GET" => "UserController@handleGetAllUser"],
+  "get-user-by-id" => ["GET" => "UserController@handleGetUserById"],
 
   // Category routes
   "get-category" => ["GET" => "CategoryController@handleGetAllCategory"],

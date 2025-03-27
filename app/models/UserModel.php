@@ -23,9 +23,10 @@ class UserModel
   public function getAllUser(
     int $page = 1,
     int $limit = 10,
-    $sort_by = 'desc',
-    $search = ''
-  ): array {
+        $sort_by = 'desc',
+        $search = ''
+  ): array
+  {
     try {
       // Kiểm tra quyền admin
       $this->isAdmin->IsAdmin();
@@ -82,7 +83,7 @@ class UserModel
       }
 
       // Trả về kết quả JSON
-      return $this->utils->buildPaginatedResponse(
+      return $this->utils->buildResponse(
         true,
         "Lấy dữ liệu thành công",
         $users,
@@ -95,10 +96,50 @@ class UserModel
         ]
       );
     } catch (PDOException $e) {
-      return $this->utils->buildPaginatedResponse(
+      return $this->utils->buildResponse(
         false,
         "Database error: " . $e->getMessage()
       );
+    }
+  }
+
+  // Lấy thông tin người dùng theo ID
+  public function getUserById(int $user_id): array
+  {
+    try {
+      // Trước hết kiểm tra xem đã đăng nhập chưa
+      if (!isset($_SESSION['user']['user_id'])) {
+        return $this->utils->buildResponse(false, "Bạn chưa đăng nhập");
+      }
+
+      // Thực hiện truy vấn lấy thông tin người dùng
+      $query = "SELECT * FROM " . self::$table_name . " WHERE user_id = :user_id";
+      $stmt = $this->conn->prepare($query);
+      $stmt->bindValue(':user_id', $user_id, PDO::PARAM_INT);
+      $stmt->execute();
+
+      $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+      // Nếu không tìm thấy người dùng trong DB
+      if (!$user) {
+        return $this->utils->buildResponse(false, "Không tìm thấy người dùng");
+      }
+
+      // Kiểm tra nếu user_id đang request khác với user_id trong session
+      if ($_SESSION['user']['user_id'] !== $user_id) {
+        return $this->utils->buildResponse(false, "Bạn không có quyền truy cập thông tin người dùng này");
+      }
+
+      // Xoá trường password trước khi trả về
+      unset($user['password']);
+      unset($user['role']);
+      unset($user['user_id']);
+
+      // Trả về kết quả JSON
+      return $this->utils->buildResponse(true, "Lấy dữ liệu thành công", $user);
+
+    } catch (PDOException $e) {
+      return $this->utils->buildResponse(false, "Database error: " . $e->getMessage());
     }
   }
 }
