@@ -41,33 +41,16 @@ class AuthController
     $address = trim($data['address'] ?? '');
     $role = trim($data['role'] ?? 'user');
 
-    // Kiểm tra định dạng email
+    // validate dữ liệu
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
       $this->utils->respond(["success" => false, "message" => "Email không hợp lệ"], 400);
-    }
-
-    // Kiểm tra role hợp lệ
-    if (!in_array($role, ['user', 'admin'])) {
-      $this->utils->respond(["success" => false, "message" => "Role không hợp lệ"], 400);
-    }
-
-    // Kiểm tra định dạng username
-    if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $username)) {
+    } else if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $username)) {
       $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
-    }
-
-    // Kiểm tra định dạng password
-    if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $password)) {
+    } else if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $password)) {
       $this->utils->respond(["success" => false, "message" => "Mật khẩu phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"], 400);
-    }
-
-    // Kiểm tra số điện thoại hợp lệ
-    if (!empty($phone_number) && (!preg_match('/^0[0-9]{9,10}$/', $phone_number) || strlen($phone_number) < 10)) {
+    } else if (!empty($phone_number) && (!preg_match('/^0[0-9]{9,10}$/', $phone_number) || strlen($phone_number) < 10)) {
       $this->utils->respond(["success" => false, "message" => "Số điện thoại không hợp lệ"], 400);
-    }
-
-    // Kiểm tra xác nhận mật khẩu
-    if ($password !== $password_confirm) {
+    } else if ($password !== $password_confirm) {
       $this->utils->respond(["success" => false, "message" => "Mật khẩu không khớp"], 400);
     }
 
@@ -159,16 +142,10 @@ class AuthController
     // Kiểm tra định dạng username
     if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $data['username'])) {
       $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
-    }
-
-    // Kiểm tra định dạng email
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
       $this->utils->respond(["success" => false, "message" => "Email không hợp lệ"], 400);
       return;
-    }
-
-    // Kiểm tra định dạng password
-    if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $new_password)) {
+    } else if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $new_password)) {
       $this->utils->respond(["success" => false, "message" => "Mật khẩu phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"], 400);
     }
 

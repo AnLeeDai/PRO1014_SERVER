@@ -142,4 +142,61 @@ class UserModel
       return $this->utils->buildResponse(false, "Database error: " . $e->getMessage());
     }
   }
+
+  // Chỉnh sửa thông tin người dùng
+  public function updateUser($userId, $fullName, $email, $phoneNumber, $address, $avatar = null, $password = null): array
+  {
+    try {
+      // Kiểm tra quyền
+      if (!isset($_SESSION['user']['user_id']) || $_SESSION['user']['user_id'] != $userId) {
+        return [
+          "success" => false,
+          "message" => "Bạn không có quyền chỉnh sửa người dùng này"
+        ];
+      }
+
+      // Lấy thông tin cũ
+      $query = "SELECT * FROM users WHERE user_id = :user_id";
+      $stmt = $this->conn->prepare($query);
+      $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+      $stmt->execute();
+      $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+      if (!$user) {
+        return ["success" => false, "message" => "Không tìm thấy người dùng"];
+      }
+
+      // Giữ nguyên avatar & password nếu không có input mới
+      $avatar = $avatar ?? $user['avatar'];
+      $password = $password ?? $user['password'];
+
+      // Cập nhật DB
+      $sql = "UPDATE users SET 
+              full_name = :full_name,
+              email = :email,
+              phone_number = :phone_number,
+              address = :address,
+              avatar_url = :avatar,
+              password = :password
+            WHERE user_id = :user_id";
+
+      $stmt = $this->conn->prepare($sql);
+
+      $stmt->bindParam(':full_name', $fullName);
+      $stmt->bindParam(':email', $email);
+      $stmt->bindParam(':phone_number', $phoneNumber);
+      $stmt->bindParam(':address', $address);
+      $stmt->bindParam(':avatar', $avatar);
+      $stmt->bindParam(':password', $password);
+      $stmt->bindParam(':user_id', $userId);
+
+      $stmt->execute();
+
+      $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+      return $this->utils->buildResponse(true, "Chỉnh sửa thông tin thành công", $user);
+    } catch (PDOException $e) {
+      return $this->utils->buildResponse(false, "Database error: " . $e->getMessage());
+    }
+  }
 }
