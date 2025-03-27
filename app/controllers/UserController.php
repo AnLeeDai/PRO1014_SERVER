@@ -36,7 +36,23 @@ class UserController
 
     $this->utils->respond($users, $users['success'] ? 200 : 400);
 
-    // Trả về JSON response
     echo json_encode($users);
+  }
+
+  // Lấy thông tin user theo id
+  public function handleGetUserById(): void
+  {
+    // Lấy id từ query params
+    $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+
+    // Kiểm tra id có tồn tại hay không
+    if (!$id) {
+      $this->utils->respond(["success" => false, "message" => "Id không hợp lệ"], 400);
+    }
+
+    // Gọi model để lấy thông tin user
+    $user = $this->userModel->getUserById($id);
+
+    echo json_encode($user);
   }
 }

@@ -74,8 +74,8 @@ class AuthController
     // Mã hóa mật khẩu với cost=12
     $hashed_password = password_hash($password, PASSWORD_DEFAULT, ['cost' => 12]);
 
-    // Avatar mặc định
-    $avatar_url = "https://picsum.photos/seed/picsum/200/300";
+    // Avatar mặc định ngẫu nhiên
+    $avatar_url = "https://robohash.org/" . uniqid();
 
     // Gọi model để xử lý đăng ký
     $result = $this->authModel->register(
@@ -98,11 +98,17 @@ class AuthController
   {
     $data = json_decode(file_get_contents("php://input"), true);
     $this->utils->validateInput($data, [
-      'email' => 'Email không được để trống',
+      'username' => 'Tên đăng nhập không được để trống',
       'password' => 'Mật khẩu không được để trống'
     ]);
 
-    $result = $this->authModel->login(trim($data['email']), trim($data['password']));
+    // validate  username
+    if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $data['username'])) {
+      $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
+    }
+
+    $result = $this->authModel->login(trim($data['username']), trim($data['password']));
+
     $this->utils->respond($result, $result['success'] ? 200 : 400);
   }
 
@@ -111,10 +117,14 @@ class AuthController
   {
     $data = json_decode(file_get_contents("php://input"), true);
     $this->utils->validateInput($data, [
-      'email' => 'Email không được để trống',
+      'username' => 'Tên đăng nhập không được để trống',
       'old_password' => 'Mật khẩu cũ không được để trống',
       'new_password' => 'Mật khẩu mới không được để trống'
     ]);
+
+    if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $data['username'])) {
+      $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
+    }
 
     $new_password = trim($data['new_password']);
     if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $new_password)) {
@@ -124,7 +134,7 @@ class AuthController
     $hashed_password = password_hash($new_password, PASSWORD_DEFAULT, ['cost' => 12]);
 
     $result = $this->authModel->changePassword(
-      trim($data['email']),
+      trim($data['username']),
       trim($data['old_password']),
       $hashed_password
     );
@@ -138,12 +148,18 @@ class AuthController
     $data = json_decode(file_get_contents("php://input"), true);
 
     $this->utils->validateInput($data, [
+      'username' => 'Tên đăng nhập không được để trống',
       'email' => 'Email không được để trống',
       'new_password' => 'Mật khẩu mới không được để trống'
     ]);
 
     $email = trim($data['email']);
     $new_password = trim($data['new_password']);
+
+    // Kiểm tra định dạng username
+    if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $data['username'])) {
+      $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
+    }
 
     // Kiểm tra định dạng email
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -159,7 +175,7 @@ class AuthController
     // Hash mật khẩu mới trước khi lưu vào yêu cầu
     $hashed_password = password_hash($new_password, PASSWORD_DEFAULT, ['cost' => 12]);
 
-    $result = $this->authModel->forgotPassword($email, $hashed_password);
+    $result = $this->authModel->forgotPassword(trim($data['username']), $email, $hashed_password);
 
     $this->utils->respond($result, $result['success'] ? 200 : 400);
   }

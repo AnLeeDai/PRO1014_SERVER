@@ -88,7 +88,7 @@ class CategoryModel
       $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
       // Trả về data kèm thông tin phân trang
-      return $this->utils->buildPaginatedResponse(
+      return $this->utils->buildResponse(
         true,
         "Lấy dữ liệu thành công",
         $categories,
@@ -101,7 +101,7 @@ class CategoryModel
         ]
       );
     } catch (PDOException $e) {
-      return $this->utils->buildPaginatedResponse(false, $e->getMessage());
+      return $this->utils->buildResponse(false, $e->getMessage());
     }
   }
 
@@ -122,12 +122,12 @@ class CategoryModel
       $stmt->bindParam(':category_name', $category_name);
       $stmt->execute();
 
-      return $this->utils->buildPaginatedResponse(
+      return $this->utils->buildResponse(
         true,
         "Thêm danh mục thành công",
       );
     } catch (PDOException $e) {
-      return $this->utils->buildPaginatedResponse(false, $e->getMessage());
+      return $this->utils->buildResponse(false, $e->getMessage());
     }
   }
 
@@ -152,16 +152,16 @@ class CategoryModel
       $stmt->execute();
 
       if ($stmt->rowCount() === 0) {
-        return $this->utils->buildPaginatedResponse(
+        return $this->utils->buildResponse(
           false,
           "Không tìm thấy hoặc không có thay đổi cho category_id = $category_id"
         );
       }
 
       // Thành công
-      return $this->utils->buildPaginatedResponse(true, "Cập nhật danh mục thành công");
+      return $this->utils->buildResponse(true, "Cập nhật danh mục thành công");
     } catch (PDOException $e) {
-      return $this->utils->buildPaginatedResponse(false, $e->getMessage());
+      return $this->utils->buildResponse(false, $e->getMessage());
     }
   }
 
@@ -200,7 +200,7 @@ class CategoryModel
         // Không xóa được => rollback
         $this->conn->rollBack();
 
-        return $this->utils->buildPaginatedResponse(
+        return $this->utils->buildResponse(
           false,
           "Không tìm thấy danh mục hoặc đã bị xóa trước đó"
         );
@@ -209,14 +209,14 @@ class CategoryModel
       $this->conn->commit();
 
       // Thành công
-      return $this->utils->buildPaginatedResponse(
+      return $this->utils->buildResponse(
         true,
         "Xóa danh mục (và các sản phẩm liên quan) thành công"
       );
     } catch (PDOException $e) {
       // Nếu có lỗi, rollback để đảm bảo dữ liệu không bị xóa dang dở
       $this->conn->rollBack();
-      return $this->utils->buildPaginatedResponse(false, $e->getMessage());
+      return $this->utils->buildResponse(false, $e->getMessage());
     }
   }
 }
