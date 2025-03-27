@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . "/../helper/cors.php";
+
 session_set_cookie_params([
   'path' => '/',
   'secure' => true,
@@ -10,7 +12,6 @@ session_name('PHPSESSID');
 
 session_start();
 
-require_once __DIR__ . "../../helper/cors.php";
 
 // Auto-load các controllers
 spl_autoload_register(function ($class) {
@@ -38,6 +39,7 @@ $routes = [
   // User routes
   "get-user" => ["GET" => "UserController@handleGetAllUser"],
   "get-user-by-id" => ["GET" => "UserController@handleGetUserById"],
+  "put-update-user" => ["PUT" => "UserController@handlerEditProfile"],
 
   // Category routes
   "get-category" => ["GET" => "CategoryController@handleGetAllCategory"],
