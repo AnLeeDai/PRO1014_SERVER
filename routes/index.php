@@ -40,6 +40,7 @@ $routes = [
   "get-user" => ["GET" => "UserController@handleGetAllUser"],
   "get-user-by-id" => ["GET" => "UserController@handleGetUserById"],
   "put-update-user" => ["PUT" => "UserController@handlerEditProfile"],
+  "put-edit-avatar" => ["POST" => "UserController@handlerUpdateAvatar"],
 
   // Category routes
   "get-category" => ["GET" => "CategoryController@handleGetAllCategory"],

@@ -144,10 +144,9 @@ class UserModel
   }
 
   // Chỉnh sửa thông tin người dùng
-  public function updateUser($userId, $fullName, $email, $phoneNumber, $address, $avatar = null, $password = null): array
+  public function updateUser($userId, $fullName, $email, $phoneNumber, $address): array
   {
     try {
-      // Kiểm tra quyền
       if (!isset($_SESSION['user']['user_id']) || $_SESSION['user']['user_id'] != $userId) {
         return [
           "success" => false,
@@ -156,8 +155,7 @@ class UserModel
       }
 
       // Lấy thông tin cũ
-      $query = "SELECT * FROM users WHERE user_id = :user_id";
-      $stmt = $this->conn->prepare($query);
+      $stmt = $this->conn->prepare("SELECT * FROM users WHERE user_id = :user_id");
       $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
       $stmt->execute();
       $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -166,37 +164,45 @@ class UserModel
         return ["success" => false, "message" => "Không tìm thấy người dùng"];
       }
 
-      // Giữ nguyên avatar & password nếu không có input mới
-      $avatar = $avatar ?? $user['avatar'];
-      $password = $password ?? $user['password'];
-
-      // Cập nhật DB
       $sql = "UPDATE users SET 
               full_name = :full_name,
               email = :email,
               phone_number = :phone_number,
-              address = :address,
-              avatar_url = :avatar,
-              password = :password
+              address = :address
             WHERE user_id = :user_id";
 
       $stmt = $this->conn->prepare($sql);
-
       $stmt->bindParam(':full_name', $fullName);
       $stmt->bindParam(':email', $email);
       $stmt->bindParam(':phone_number', $phoneNumber);
       $stmt->bindParam(':address', $address);
-      $stmt->bindParam(':avatar', $avatar);
-      $stmt->bindParam(':password', $password);
       $stmt->bindParam(':user_id', $userId);
-
       $stmt->execute();
 
-      $user = $stmt->fetch(PDO::FETCH_ASSOC);
+      // Lấy lại user sau khi update
+      $stmt = $this->conn->prepare("SELECT * FROM users WHERE user_id = :user_id");
+      $stmt->bindParam(':user_id', $userId);
+      $stmt->execute();
+      $updatedUser = $stmt->fetch(PDO::FETCH_ASSOC);
 
-      return $this->utils->buildResponse(true, "Chỉnh sửa thông tin thành công", $user);
+      return $this->utils->buildResponse(true, "Chỉnh sửa thông tin thành công", $updatedUser);
     } catch (PDOException $e) {
       return $this->utils->buildResponse(false, "Database error: " . $e->getMessage());
+    }
+  }
+
+  // update avatar
+  public function updateAvatar($userId, $avatarPath): array
+  {
+    try {
+      $stmt = $this->conn->prepare("UPDATE users SET avatar_url = :avatar WHERE user_id = :user_id");
+      $stmt->bindParam(':avatar', $avatarPath);
+      $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+      $stmt->execute();
+
+      return $this->utils->buildResponse(true, "Cập nhật ảnh đại diện thành công");
+    } catch (PDOException $e) {
+      return $this->utils->buildResponse(false, "Lỗi database: " . $e->getMessage());
     }
   }
 }

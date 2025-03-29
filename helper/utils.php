@@ -1,89 +1,95 @@
 <?php
 
+use JetBrains\PhpStorm\NoReturn;
+
 class Utils
 {
-  function loadEnv($envPath)
+  public static function uploadImage(array $file, string $filePrefix): array
   {
-    if (!file_exists($envPath)) {
-      return;
+    $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!in_array($file['type'], $allowedTypes)) {
+      return ['success' => false, 'message' => 'Chỉ chấp nhận ảnh JPEG, PNG hoặc WEBP'];
     }
 
-    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-      // Bỏ qua comment
-      if (strpos(trim($line), '#') === 0) {
-        continue;
-      }
+    if ($file['size'] > 2 * 1024 * 1024) {
+      return ['success' => false, 'message' => 'Ảnh quá lớn (tối đa 2MB)'];
+    }
 
-      $pair = explode('=', $line, 2);
-      if (count($pair) !== 2) {
-        continue;
-      }
+    $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+    $fileName = "{$filePrefix}_" . time() . ".$ext";
 
-      $name = trim($pair[0]);
-      $value = trim($pair[1]);
+    // Đường dẫn cố định: uploads/
+    $absoluteDir = "C:/laragon/www/uploads";
 
-      // Gán vào ENV nếu chưa tồn tại
-      if (!getenv($name)) {
-        putenv("$name=$value");
-        $_ENV[$name] = $value;
-        $_SERVER[$name] = $value;
+    if (!is_dir($absoluteDir)) {
+      if (!mkdir($absoluteDir, 0777, true)) {
+        return ['success' => false, 'message' => 'Không thể tạo thư mục lưu ảnh'];
       }
     }
+
+    if (!is_writable($absoluteDir)) {
+      return ['success' => false, 'message' => 'Thư mục không có quyền ghi'];
+    }
+
+    $uploadPath = "$absoluteDir/$fileName";
+
+    if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
+      return ['success' => false, 'message' => 'Tải ảnh lên thất bại'];
+    }
+
+    $relativePath = "uploads/$fileName";
+
+    return [
+      'success' => true,
+      'message' => 'Upload thành công',
+      'file_name' => $fileName,
+      'path' => $relativePath,
+      'url' => self::buildAbsoluteUrl($relativePath)
+    ];
   }
 
-  public static function validateInput($data, $rules)
+  public static function buildAbsoluteUrl(string $relativePath): string
   {
-    foreach ($rules as $key => $value) {
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    return $protocol . '://' . $_SERVER['HTTP_HOST'] . '/' . ltrim($relativePath, '/');
+  }
+
+  public static function validateInput($data, $rules): void
+  {
+    foreach ($rules as $key => $message) {
       if (empty($data[$key])) {
-        http_response_code(400);
-        die(json_encode(["success" => false, "message" => $value]));
+        self::respond(["success" => false, "message" => $message], 400);
       }
     }
   }
 
-  public static function respond($data, $status = 200)
+  #[NoReturn] public static function respond($data, $status = 200): void
   {
     http_response_code($status);
+    header('Content-Type: application/json');
     die(json_encode($data));
   }
 
   public function buildResponse(
-    bool   $success,
+    bool $success,
     string $message,
-    array  $data = [],
-    int    $page = 1,
-    int    $limit = 10,
-    int    $totalItems = 0,
-    array  $filters = []
-  ): array
-  {
-    if (!$success) {
-      return [
-        "success" => false,
-        "message" => $message,
-        "filters" => [],
-        "pagination" => [
-          "current_page" => $page,
-          "limit" => $limit,
-          "total_items" => 0,
-          "total_pages" => 0
-        ],
-        "data" => []
-      ];
-    }
-
+    array $data = [],
+    int $page = 1,
+    int $limit = 10,
+    int $totalItems = 0,
+    array $filters = []
+  ): array {
     return [
-      "success" => true,
-      "message" => $message,
-      "filters" => $filters,
-      "pagination" => [
-        "current_page" => $page,
-        "limit" => $limit,
-        "total_items" => $totalItems,
-        "total_pages" => (int)ceil($totalItems / $limit)
+      'success' => $success,
+      'message' => $message,
+      'filters' => $filters,
+      'pagination' => [
+        'current_page' => $page,
+        'limit' => $limit,
+        'total_items' => $success ? $totalItems : 0,
+        'total_pages' => $success ? (int)ceil($totalItems / $limit) : 0
       ],
-      "data" => $data
+      'data' => $success ? $data : []
     ];
   }
 }
