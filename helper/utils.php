@@ -22,19 +22,23 @@ class Utils
     }
   }
 
-  public static function uploadImage(array $file, string $filePrefix): array
+  public static function uploadImage(array $file, string $filePrefix, ?string $customName = null): array
   {
     $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!in_array($file['type'], $allowedTypes)) {
       return ['success' => false, 'message' => 'Chỉ chấp nhận ảnh JPEG, PNG hoặc WEBP'];
     }
 
-    if ($file['size'] > 5 * 1024 * 1024) { // tăng giới hạn cho ảnh gốc nếu muốn
+    if ($file['size'] > 5 * 1024 * 1024) {
       return ['success' => false, 'message' => 'Ảnh quá lớn (tối đa 5MB)'];
     }
 
     $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-    $fileName = "{$filePrefix}_" . time() . ".$ext";
+
+    // Ưu tiên dùng custom name nếu có
+    $fileName = $customName
+      ? $customName . '.' . $ext
+      : "{$filePrefix}_" . time() . ".$ext";
 
     $absoluteDir = "C:/laragon/www/uploads";
     if (!is_dir($absoluteDir)) {
@@ -50,7 +54,6 @@ class Utils
     $tempPath = $file['tmp_name'];
     $finalPath = "$absoluteDir/$fileName";
 
-    // Tối ưu và lưu ảnh
     if (!self::optimizeImage($tempPath, $finalPath, $file['type'])) {
       return ['success' => false, 'message' => 'Không thể tối ưu ảnh'];
     }

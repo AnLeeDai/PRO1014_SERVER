@@ -122,11 +122,11 @@ class UserController
       return;
     }
 
+    $username = $_SESSION['user']['username'] ?? 'user_' . $_SESSION['user']['user_id'];
+
     // XÓA ẢNH CŨ nếu tồn tại
     if (!empty($_SESSION['user']['avatar'])) {
       $oldUrl = $_SESSION['user']['avatar'];
-
-      // Chuyển URL => đường dẫn vật lý
       $parsedUrl = parse_url($oldUrl);
       $relativePath = ltrim($parsedUrl['path'] ?? '', '/');
       $oldFilePath = "C:/laragon/www/" . $relativePath;
@@ -136,8 +136,8 @@ class UserController
       }
     }
 
-    // Upload ảnh mới
-    $uploadResult = Utils::uploadImage($_FILES['avatar'], 'avatar_' . $_SESSION['user']['user_id']);
+    // Upload ảnh mới với tên = username
+    $uploadResult = Utils::uploadImage($_FILES['avatar'], $username, $username);
 
     if (!$uploadResult['success']) {
       $this->utils->respond($this->utils->buildResponse(false, $uploadResult['message']), 400);
