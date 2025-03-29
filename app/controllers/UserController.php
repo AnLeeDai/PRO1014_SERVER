@@ -90,25 +90,13 @@ class UserController
       return;
     }
 
-    // Nếu có nhập password thì validate & hash
-    $hashed_password = null;
-    if (!empty($data['password'])) {
-      if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $data['password'])) {
-        $this->utils->respond(["success" => false, "message" => "Mật khẩu phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"], 400);
-        return;
-      }
-      $hashed_password = password_hash($data['password'], PASSWORD_DEFAULT, ['cost' => 12]);
-    }
-
     // Gọi model update
     $result = $this->userModel->updateUser(
       $_SESSION['user']['user_id'],
       $data['full_name'],
       $data['email'],
       $data['phone_number'],
-      $data['address'],
-      $data['avatar'] ?? null,
-      $hashed_password
+      $data['address']
     );
 
     // Nếu thành công thì cập nhật lại session
@@ -117,12 +105,53 @@ class UserController
       $_SESSION['user']['email'] = $data['email'];
       $_SESSION['user']['phone_number'] = $data['phone_number'];
       $_SESSION['user']['address'] = $data['address'];
-
-      if (isset($data['avatar'])) {
-        $_SESSION['user']['avatar'] = $data['avatar'];
-      }
     }
 
     $this->utils->respond($result, $result['success'] ? 200 : 400);
+  }
+
+  function handlerUpdateAvatar(): void
+  {
+    if (!isset($_SESSION['user'])) {
+      $this->utils->respond($this->utils->buildResponse(false, "Bạn chưa đăng nhập"), 401);
+      return;
+    }
+
+    if (!isset($_FILES['avatar'])) {
+      $this->utils->respond($this->utils->buildResponse(false, "Không tìm thấy file ảnh"), 400);
+      return;
+    }
+
+    $username = $_SESSION['user']['username'] ?? 'user_' . $_SESSION['user']['user_id'];
+
+    // XÓA ẢNH CŨ nếu tồn tại
+    if (!empty($_SESSION['user']['avatar'])) {
+      $oldUrl = $_SESSION['user']['avatar'];
+      $parsedUrl = parse_url($oldUrl);
+      $relativePath = ltrim($parsedUrl['path'] ?? '', '/');
+      $oldFilePath = "C:/laragon/www/" . $relativePath;
+
+      if (file_exists($oldFilePath)) {
+        unlink($oldFilePath);
+      }
+    }
+
+    // Upload ảnh mới với tên = username
+    $uploadResult = Utils::uploadImage($_FILES['avatar'], $username, $username);
+
+    if (!$uploadResult['success']) {
+      $this->utils->respond($this->utils->buildResponse(false, $uploadResult['message']), 400);
+      return;
+    }
+
+    // Cập nhật DB & session
+    $this->userModel->updateAvatar($_SESSION['user']['user_id'], $uploadResult['url']);
+    $_SESSION['user']['avatar'] = $uploadResult['url'];
+
+    $response = $this->utils->buildResponse(true, "Cập nhật ảnh đại diện thành công", [
+      "avatar_url" => $uploadResult['url']
+    ]);
+
+    $this->utils->respond($response);
   }
 }
