@@ -4,6 +4,24 @@ use JetBrains\PhpStorm\NoReturn;
 
 class Utils
 {
+  private static function optimizeImage(string $sourcePath, string $destPath, string $type): bool
+  {
+    switch ($type) {
+      case 'image/jpeg':
+        $image = imagecreatefromjpeg($sourcePath);
+        return imagejpeg($image, $destPath, 75); // nén 75%
+      case 'image/png':
+        $image = imagecreatefrompng($sourcePath);
+        imagesavealpha($image, true);
+        return imagepng($image, $destPath, 6); // mức nén từ 0 (chất lượng cao) đến 9
+      case 'image/webp':
+        $image = imagecreatefromwebp($sourcePath);
+        return imagewebp($image, $destPath, 75);
+      default:
+        return false;
+    }
+  }
+
   public static function uploadImage(array $file, string $filePrefix): array
   {
     $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
@@ -11,16 +29,14 @@ class Utils
       return ['success' => false, 'message' => 'Chỉ chấp nhận ảnh JPEG, PNG hoặc WEBP'];
     }
 
-    if ($file['size'] > 2 * 1024 * 1024) {
-      return ['success' => false, 'message' => 'Ảnh quá lớn (tối đa 2MB)'];
+    if ($file['size'] > 5 * 1024 * 1024) { // tăng giới hạn cho ảnh gốc nếu muốn
+      return ['success' => false, 'message' => 'Ảnh quá lớn (tối đa 5MB)'];
     }
 
     $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
     $fileName = "{$filePrefix}_" . time() . ".$ext";
 
-    // Đường dẫn cố định: uploads/
     $absoluteDir = "C:/laragon/www/uploads";
-
     if (!is_dir($absoluteDir)) {
       if (!mkdir($absoluteDir, 0777, true)) {
         return ['success' => false, 'message' => 'Không thể tạo thư mục lưu ảnh'];
@@ -31,10 +47,12 @@ class Utils
       return ['success' => false, 'message' => 'Thư mục không có quyền ghi'];
     }
 
-    $uploadPath = "$absoluteDir/$fileName";
+    $tempPath = $file['tmp_name'];
+    $finalPath = "$absoluteDir/$fileName";
 
-    if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
-      return ['success' => false, 'message' => 'Tải ảnh lên thất bại'];
+    // Tối ưu và lưu ảnh
+    if (!self::optimizeImage($tempPath, $finalPath, $file['type'])) {
+      return ['success' => false, 'message' => 'Không thể tối ưu ảnh'];
     }
 
     $relativePath = "uploads/$fileName";
