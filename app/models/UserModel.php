@@ -107,11 +107,6 @@ class UserModel
   public function getUserById(int $user_id): array
   {
     try {
-      // Trước hết kiểm tra xem đã đăng nhập chưa
-      if (!isset($_SESSION['user']['user_id'])) {
-        return $this->utils->buildResponse(false, "Bạn chưa đăng nhập");
-      }
-
       // Thực hiện truy vấn lấy thông tin người dùng
       $query = "SELECT * FROM " . self::$table_name . " WHERE user_id = :user_id";
       $stmt = $this->conn->prepare($query);

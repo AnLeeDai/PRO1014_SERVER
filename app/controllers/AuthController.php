@@ -57,7 +57,7 @@ class AuthController
     // Mã hóa mật khẩu với cost=12
     $hashed_password = password_hash($password, PASSWORD_DEFAULT, ['cost' => 12]);
 
-    // Avatar mặc định ngẫu nhiên
+    // Avatar mặc định ngẫu nhiên admin avatar khác vơi user
     $avatar_url = "https://robohash.org/" . uniqid();
 
     // Gọi model để xử lý đăng ký
