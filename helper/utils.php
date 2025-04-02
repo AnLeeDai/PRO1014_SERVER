@@ -9,14 +9,14 @@ class Utils
         switch ($type) {
             case 'image/jpeg':
                 $image = imagecreatefromjpeg($sourcePath);
-                return imagejpeg($image, $destPath, 75); // nén 75%
+                return imagejpeg($image, $destPath, 60);
             case 'image/png':
                 $image = imagecreatefrompng($sourcePath);
                 imagesavealpha($image, true);
-                return imagepng($image, $destPath, 7); // mức nén từ 0 (chất lượng cao) đến 9
+                return imagepng($image, $destPath, 9); // mức nén từ 0 (chất lượng cao) đến 9
             case 'image/webp':
                 $image = imagecreatefromwebp($sourcePath);
-                return imagewebp($image, $destPath, 75);
+                return imagewebp($image, $destPath, 60);
             default:
                 return false;
         }
