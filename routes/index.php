@@ -3,9 +3,9 @@ require_once __DIR__ . "/../helper/cors.php";
 
 session_set_cookie_params([
     'path' => '/',
-    'secure' => true,
+    'secure' => false,
     'httponly' => true,
-    'samesite' => 'None',
+    'samesite' => 'Lax',
 ]);
 
 session_name('HTTPSESSION');
