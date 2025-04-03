@@ -124,7 +124,7 @@ class AuthModel
     }
 
     // Quên mật khẩu
-    public function forgotPassword(string $username, string $email, string $new_password): array
+    public function forgotPassword(string $username, string $email, string $new_password, string $status): array
     {
         try {
             // Kiểm tra username có tồn tại
@@ -150,11 +150,12 @@ class AuthModel
             }
 
             // Thêm yêu cầu đổi mật khẩu vào bảng
-            $queryInsert = "INSERT INTO password_requests (username, email, new_password) VALUES (:username, :email, :new_password)";
+            $queryInsert = "INSERT INTO password_requests (username, email, new_password, status) VALUES (:username, :email, :new_password, :status)";
             $stmt = $this->conn->prepare($queryInsert);
             $stmt->bindParam(':username', $username, PDO::PARAM_STR);
             $stmt->bindParam(':email', $email, PDO::PARAM_STR);
             $stmt->bindParam(':new_password', $new_password, PDO::PARAM_STR);
+            $stmt->bindParam(':status', $status, PDO::PARAM_STR);
             $stmt->execute();
 
             return ["success" => true, "message" => "Yêu cầu đổi mật khẩu đã được ghi nhận, admin sẽ xử lý sơm nhất có thể"];

@@ -144,15 +144,15 @@ class AuthController
             $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
         } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->utils->respond(["success" => false, "message" => "Email không hợp lệ"], 400);
-            return;
         } else if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $new_password)) {
             $this->utils->respond(["success" => false, "message" => "Mật khẩu phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"], 400);
         }
 
         // Hash mật khẩu mới trước khi lưu vào yêu cầu
         $hashed_password = password_hash($new_password, PASSWORD_DEFAULT, ['cost' => 12]);
+        $status = 'pending';
 
-        $result = $this->authModel->forgotPassword(trim($data['username']), $email, $hashed_password);
+        $result = $this->authModel->forgotPassword(trim($data['username']), $email, $hashed_password, $status);
 
         $this->utils->respond($result, $result['success'] ? 200 : 400);
     }
@@ -177,7 +177,6 @@ class AuthController
 
         if (!isset($data['request_id'])) {
             $this->utils->respond(["success" => false, "message" => "Thiếu ID yêu cầu"], 400);
-            return;
         }
 
         $request_id = (int)$data['request_id'];
@@ -194,7 +193,6 @@ class AuthController
                 ["success" => false, "message" => "Bạn chưa đăng nhập"],
                 400
             );
-            return;
         }
 
         session_unset();
@@ -202,7 +200,7 @@ class AuthController
 
         $this->utils->respond(
             ["success" => true, "message" => "Đăng xuất thành công"],
-            200
+            400
         );
     }
 }
