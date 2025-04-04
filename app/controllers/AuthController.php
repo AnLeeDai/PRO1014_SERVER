@@ -1,206 +1,213 @@
 <?php
+
 require_once __DIR__ . "/../models/AuthModel.php";
 require_once __DIR__ . "/../../helper/utils.php";
 require_once __DIR__ . "/../../helper/cors.php";
+require_once __DIR__ . "/../../helper/jwt_helper.php";
 
 class AuthController
 {
     private AuthModel $authModel;
-    private Utils $utils;
+    private JwtHelper $jwtHelper;
 
     public function __construct()
     {
         $this->authModel = new AuthModel();
-        $this->utils = new Utils();
+        $this->jwtHelper = new JwtHelper();
     }
 
-    // Xử lý đăng ký tài khoản
     public function handleRegister(): void
     {
-        // Nhận dữ liệu từ request
         $data = json_decode(file_get_contents("php://input"), true);
-        if (!$data) {
-            $this->utils->respond(["success" => false, "message" => "Dữ liệu không hợp lệ"], 400);
-        }
 
-        // Validate dữ liệu đầu vào
-        $this->utils->validateInput($data, [
+        $basicRules = [
             'username' => 'Tên đăng nhập không được để trống',
             'password' => 'Mật khẩu không được để trống',
-            'full_name' => 'Họ tên không được để trống',
             'password_confirm' => 'Xác nhận mật khẩu không được để trống',
-            'email' => 'Email không được để trống'
-        ]);
+            'full_name' => 'Họ tên không được để trống',
+            'email' => 'Email không được để trống',
+        ];
+        $validationErrors = Utils::validateBasicInput($data, $basicRules);
+        if (!empty($validationErrors)) {
+            Utils::respond(["success" => false, "message" => "Thiếu thông tin bắt buộc.", "errors" => $validationErrors], 400);
+        }
 
-        // Lấy dữ liệu từ request
+        $formatErrors = [];
+
+        // Lấy và trim dữ liệu
         $username = trim($data['username']);
         $password = trim($data['password']);
         $password_confirm = trim($data['password_confirm']);
+        $full_name = trim($data['full_name']);
         $email = trim($data['email']);
-        $phone_number = trim($data['phone_number'] ?? '');
-        $address = trim($data['address'] ?? '');
-        $role = trim($data['role'] ?? 'user');
+        $phone_number = isset($data['phone_number']) ? trim($data['phone_number']) : null;
+        $address = isset($data['address']) ? trim($data['address']) : null;
+        $role = isset($data['role']) ? trim($data['role']) : 'user';
 
-        // validate dữ liệu
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->utils->respond(["success" => false, "message" => "Email không hợp lệ"], 400);
-        } else if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $username)) {
-            $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
-        } else if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $password)) {
-            $this->utils->respond(["success" => false, "message" => "Mật khẩu phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"], 400);
-        } else if (!empty($phone_number) && (!preg_match('/^0[0-9]{9,10}$/', $phone_number) || strlen($phone_number) < 10)) {
-            $this->utils->respond(["success" => false, "message" => "Số điện thoại không hợp lệ"], 400);
-        } else if ($password !== $password_confirm) {
-            $this->utils->respond(["success" => false, "message" => "Mật khẩu không khớp"], 400);
+        // Validate Format
+        if (!Utils::validateUsernameFormat($username)) {
+            $formatErrors['username'] = 'Tên đăng nhập không hợp lệ (ít nhất 3 ký tự, chỉ chứa a-z, A-Z, 0-9, _, ., -).';
         }
 
-        // Mã hóa mật khẩu với cost=12
-        $hashed_password = password_hash($password, PASSWORD_DEFAULT, ['cost' => 12]);
+        if (!Utils::validateEmailFormat($email)) {
+            $formatErrors['email'] = 'Định dạng email không hợp lệ.';
+        }
 
-        // Avatar mặc định ngẫu nhiên admin avatar khác vơi user
-        $avatar_url = "https://robohash.org/" . uniqid();
+        if (!Utils::validatePasswordComplexity($password)) {
+            $formatErrors['password'] = 'Mật khẩu phải chứa ít nhất một ký tự thường (a-z), một ký tự hoa (A-Z), một chữ số (0-9), một ký tự đặc biệt và có độ dài tối thiểu 8 ký tự.';
+        }
 
-        // Gọi model để xử lý đăng ký
-        $result = $this->authModel->register(
-            $username,
-            $hashed_password,
-            trim($data['full_name']),
-            $email,
-            $phone_number,
-            $address,
-            $avatar_url,
-            $role
-        );
+        if ($phone_number !== null && $phone_number !== '' && !Utils::validatePhoneNumberVN($phone_number)) {
+            $formatErrors['phone_number'] = 'Số điện thoại không hợp lệ (phải có 10 chữ số, bắt đầu bằng 0).';
+        }
 
-        // Trả về phản hồi
-        $this->utils->respond($result, $result['success'] ? 200 : 400);
+        if ($password !== $password_confirm) {
+            $formatErrors['password_confirm'] = 'Xác nhận mật khẩu không khớp.';
+        }
+
+        // Chỉ cho phép đăng ký role 'user' qua API này
+        if ($role !== 'user') {
+            $role = 'user';
+        }
+
+        // Kiểm tra lỗi định dạng/logic
+        if (!empty($formatErrors)) {
+            Utils::respond(["success" => false, "message" => "Dữ liệu không hợp lệ.", "errors" => $formatErrors], 400);
+        }
+
+        $conflictErrors = [];
+        if ($this->authModel->findUserByUsername($username)) {
+            $conflictErrors['username'] = 'Tên đăng nhập này đã được sử dụng.';
+        }
+        if ($this->authModel->findUserByEmail($email)) {
+            $conflictErrors['email'] = 'Email này đã được sử dụng.';
+        }
+
+        if (!empty($conflictErrors)) {
+            Utils::respond(["success" => false, "message" => "Thông tin đăng ký đã tồn tại.", "errors" => $conflictErrors], 409);
+        }
+
+        $hashedPassword = password_hash($password, PASSWORD_DEFAULT, ['cost' => 12]);
+        if ($hashedPassword === false) {
+            error_log("Password hashing failed for user: " . $username);
+            Utils::respond(["success" => false, "message" => "Lỗi hệ thống, không thể xử lý mật khẩu."], 500);
+        }
+
+        $avatar_url = "https://avatar.iran.liara.run/public";
+
+        $userDataToInsert = [
+            'username' => $username,
+            'password' => $hashedPassword,
+            'full_name' => $full_name,
+            'email' => $email,
+            'phone_number' => $phone_number,
+            'address' => $address,
+            'avatar_url' => $avatar_url,
+            'role' => $role,
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+
+        $newUserId = $this->authModel->createUser($userDataToInsert);
+
+        if ($newUserId !== false) {
+            // Không trả về password hash
+            unset($userDataToInsert['password']);
+            unset($userDataToInsert['user_id']);
+
+            $userDataToInsert['user_id'] = $newUserId;
+
+            Utils::respond([
+                "success" => true,
+                "message" => "Đăng ký tài khoản thành công!",
+                "user" => $userDataToInsert
+            ], 201);
+        } else {
+            Utils::respond(["success" => false, "message" => "Đã xảy ra lỗi khi tạo tài khoản. Vui lòng thử lại."], 500); // 500 Internal Server Error
+        }
     }
 
-    // Xử lý đăng nhập
     public function handleLogin(): void
     {
         $data = json_decode(file_get_contents("php://input"), true);
-        $this->utils->validateInput($data, [
+
+        $rules = [
             'username' => 'Tên đăng nhập không được để trống',
             'password' => 'Mật khẩu không được để trống'
-        ]);
+        ];
 
-        // validate  username
-        if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $data['username'])) {
-            $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
+        $validationErrors = Utils::validateBasicInput($data, $rules);
+
+        if (!empty($validationErrors)) {
+            Utils::respond([
+                "success" => false,
+                "message" => "Dữ liệu đầu vào không hợp lệ.",
+                "errors" => $validationErrors
+            ], 400);
         }
 
-        $result = $this->authModel->login(trim($data['username']), trim($data['password']));
+        $username = trim($data['username']);
+        $password = trim($data['password']);
 
-        $this->utils->respond($result, $result['success'] ? 200 : 400);
-    }
+        $formatErrors = [];
 
-    // Xử lý đổi mật khẩu
-    public function handleChangePassword(): void
-    {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $this->utils->validateInput($data, [
-            'username' => 'Tên đăng nhập không được để trống',
-            'old_password' => 'Mật khẩu cũ không được để trống',
-            'new_password' => 'Mật khẩu mới không được để trống'
-        ]);
-
-        if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $data['username'])) {
-            $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
+        if (!Utils::validateUsernameFormat($username)) {
+            $formatErrors['username'] = 'Tên đăng nhập không hợp lệ (ít nhất 3 ký tự, chỉ chứa a-z, A-Z, 0-9, _, ., -).';
         }
 
-        $new_password = trim($data['new_password']);
-        if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $new_password)) {
-            $this->utils->respond(["success" => false, "message" => "Mật khẩu không đúng định dạng"], 400);
+        if (!Utils::validatePasswordComplexity($password)) {
+            $formatErrors['password'] = 'Mật khẩu phải chứa ít nhất một ký tự thường (a-z), một ký tự hoa (A-Z), một chữ số (0-9), một ký tự đặc biệt và có độ dài tối thiểu 8 ký tự.';
         }
 
-        $hashed_password = password_hash($new_password, PASSWORD_DEFAULT, ['cost' => 12]);
-
-        $result = $this->authModel->changePassword(
-            trim($data['username']),
-            trim($data['old_password']),
-            $hashed_password
-        );
-
-        $this->utils->respond($result, $result['success'] ? 200 : 400);
-    }
-
-    // Xử lý quên mật khẩu
-    public function handleForgotPassword(): void
-    {
-        $data = json_decode(file_get_contents("php://input"), true);
-
-        $this->utils->validateInput($data, [
-            'username' => 'Tên đăng nhập không được để trống',
-            'email' => 'Email không được để trống',
-            'new_password' => 'Mật khẩu mới không được để trống'
-        ]);
-
-        $email = trim($data['email']);
-        $new_password = trim($data['new_password']);
-
-        // Kiểm tra định dạng username
-        if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $data['username'])) {
-            $this->utils->respond(["success" => false, "message" => "Tên đăng nhập phải có ít nhất 6 ký tự, chỉ chứa chữ cái và số"], 400);
-        } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->utils->respond(["success" => false, "message" => "Email không hợp lệ"], 400);
-        } else if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/', $new_password)) {
-            $this->utils->respond(["success" => false, "message" => "Mật khẩu phải có ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt"], 400);
+        if (!empty($formatErrors)) {
+            Utils::respond([
+                "success" => false,
+                "message" => "Dữ liệu đầu vào không đúng định dạng.",
+                "errors" => $formatErrors
+            ], 400);
         }
 
-        // Hash mật khẩu mới trước khi lưu vào yêu cầu
-        $hashed_password = password_hash($new_password, PASSWORD_DEFAULT, ['cost' => 12]);
-        $status = 'pending';
+        $userDataFromDb = $this->authModel->getUserLoginDataByUsername($username);
 
-        $result = $this->authModel->forgotPassword(trim($data['username']), $email, $hashed_password, $status);
+        $isAuthenticated = false;
+        $loginMessage = '';
 
-        $this->utils->respond($result, $result['success'] ? 200 : 400);
-    }
-
-    // danh sách yêu cầu đổi mật khẩu
-    public function listPendingPasswordRequests(): void
-    {
-        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
-        $sort_by = $_GET['sort_by'] ?? 'desc';
-        $search = $_GET['search'] ?? '';
-        $status = $_GET['status'] ?? 'pending';
-
-        $result = $this->authModel->getPasswordRequests($page, $limit, $sort_by, $search, $status);
-        $this->utils->respond($result, $result['success'] ? 200 : 400);
-    }
-
-    // admin xác nhận yêu cầu đổi mật khẩu
-    public function handleAdminPasswordChange(): void
-    {
-        $data = json_decode(file_get_contents("php://input"), true);
-
-        if (!isset($data['request_id'])) {
-            $this->utils->respond(["success" => false, "message" => "Thiếu ID yêu cầu"], 400);
+        if ($userDataFromDb === false) {
+            $loginMessage = 'Tên đăng nhập không tồn tại trên hệ thống.';
+        } else {
+            if (password_verify($password, $userDataFromDb['password'])) {
+                $isAuthenticated = true;
+            } else {
+                $loginMessage = 'Mật khẩu không chính xác.';
+            }
         }
 
-        $request_id = (int)$data['request_id'];
+        if ($isAuthenticated) {
+            // Tạo JWT
+            $payload = [
+                'user_id' => $userDataFromDb['user_id'],
+                'username' => $userDataFromDb['username'],
+                'role' => $userDataFromDb['role'],
+            ];
+            $token_lifetime = $_ENV['JWT_LIFETIME_SECONDS'] ?? 3600;
+            $token = $this->jwtHelper->generateToken($payload, (int)$token_lifetime);
 
-        $result = $this->authModel->adminChangePassword($request_id);
-        $this->utils->respond($result, $result['success'] ? 200 : 400);
-    }
-
-    // Xử lý đăng xuất
-    public function handleLogout(): void
-    {
-        if (!isset($_SESSION) || !isset($_SESSION['user'])) {
-            $this->utils->respond(
-                ["success" => false, "message" => "Bạn chưa đăng nhập"],
-                400
-            );
+            $response_data = [
+                "success" => true,
+                "message" => "Đăng nhập thành công",
+                "token" => $token,
+                "user" => [
+                    'user_id' => $userDataFromDb['user_id'],
+                    'username' => $userDataFromDb['username'],
+                    'full_name' => $userDataFromDb['full_name'] ?? null,
+                    'email' => $userDataFromDb['email'] ?? null,
+                    'role' => $userDataFromDb['role'],
+                    'avatar_url' => $userDataFromDb['avatar_url'] ?? null
+                ],
+                "expires_in" => (int)$token_lifetime
+            ];
+            Utils::respond($response_data, 200);
+        } else {
+            Utils::respond(["success" => false, "message" => $loginMessage], 401);
         }
-
-        session_unset();
-        session_destroy();
-
-        $this->utils->respond(
-            ["success" => true, "message" => "Đăng xuất thành công"],
-            400
-        );
     }
 }
