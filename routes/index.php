@@ -1,40 +1,49 @@
 <?php
-// --- 1. CORS ---
-require_once __DIR__ . "/../helper/cors.php";
+require_once __DIR__ . "/../helper/Cors.php";
 
 // --- (Session đã được comment out - OK nếu dùng JWT) ---
 //session_set_cookie_params([...]);
 //session_name('HTTPSESSION');
 //session_start();
 
-spl_autoload_register(function ($class) {
-    $paths = [
-        'controller' => __DIR__ . "/../app/controllers/" . $class . ".php",
-        'model' => __DIR__ . "/../app/models/" . $class . ".php",
-        'helper_utils' => __DIR__ . "/../helper/utils.php",
-        'helper_jwt' => __DIR__ . "/../helper/jwt_helper.php",
+spl_autoload_register(function (string $className) {
+    $baseDir = __DIR__ . '/../';
+
+    $classMap = [
+        'Utils' => $baseDir . 'helper/Utils.php',
+        'JwtHelper' => $baseDir . 'helper/JwtHelper.php',
+        'AuthMiddleware' => $baseDir . 'helper/AuthMiddleware.php',
+        'Database' => $baseDir . 'config/Database.php',
     ];
 
-    if ($class === 'Utils' && file_exists($paths['helper_utils'])) {
-        require_once $paths['helper_utils'];
+    if (isset($classMap[$className])) {
+        $filePath = $classMap[$className];
+        if (file_exists($filePath)) {
+            require_once $filePath;
+            return;
+        } else {
+            error_log("Autoload Error: Mapped file not found for class {$className} at {$filePath}");
+        }
+    }
+
+    $controllerPath = $baseDir . 'app/controllers/' . $className . '.php';
+    if (file_exists($controllerPath)) {
+        require_once $controllerPath;
         return;
     }
 
-    if ($class === 'JwtHelper' && file_exists($paths['helper_jwt'])) {
-        require_once $paths['helper_jwt'];
+    $modelPath = $baseDir . 'app/models/' . $className . '.php';
+    if (file_exists($modelPath)) {
+        require_once $modelPath;
         return;
     }
 
-    if (file_exists($paths['controller'])) {
-        require_once $paths['controller'];
-    } elseif (file_exists($paths['model'])) {
-        require_once $paths['model'];
-    }
+    error_log("Autoload Error: Class '{$className}' could not be found by the autoloader.");
 });
 
 // --- KHỞI TẠO ADMIN MẶC ĐỊNH (NẾU CHƯA CÓ) ---
 try {
-    $initAuthModel = new AuthModel();
+    $initAuthModel = new authmodel();
 
     // Kiểm tra xem có admin chưa
     if (!$initAuthModel->hasAdminAccount()) {
@@ -52,6 +61,8 @@ try {
         // Hash mật khẩu
         $hashedPassword = password_hash($defaultAdminPassword, PASSWORD_DEFAULT, ['cost' => 12]);
 
+        $avatar_url = 'https://picsum.photos/id/' . rand(1, 1000) . '/300';
+
         if ($hashedPassword === false) {
             error_log("[Auto Init] CRITICAL: Failed to hash default admin password.");
         } else {
@@ -62,9 +73,9 @@ try {
                 'full_name' => $defaultAdminFullName,
                 'email' => $defaultAdminEmail,
                 'role' => 'admin',
-                'phone_number' => null,
-                'address' => null,
-                'avatar_url' => 'https://avatar.iran.liara.run/public/admin?username=' . $defaultAdminUsername,
+                'phone_number' => '0334920373',
+                'address' => 'Nhân cầu 3, Thị Trấn Hưng Hà, Thái Bình',
+                'avatar_url' => $avatar_url,
             ];
 
             // Tạo admin user thông qua model
@@ -77,11 +88,11 @@ try {
                     error_log("[Auto Init] SECURITY WARNING: Default admin password is weak or known. Please change it immediately!");
                 }
             } else {
-                error_log("[Auto Init] CRITICAL: Failed to create default admin account '{$defaultAdminUsername}'. Check database connection, permissions, and AuthModel::createUser logs.");
+                error_log("[Auto Init] CRITICAL: Failed to create default admin account '{$defaultAdminUsername}'. Check database connection, permissions, and authmodel::createUser logs.");
             }
         }
     }
-    // Giải phóng biến, không cần nữa trong luồng request chính
+
     unset($initAuthModel);
 
 } catch (\Throwable $e) {
@@ -95,9 +106,13 @@ $request = $_GET['request'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 
 $routes = [
-    // Authentication routes
+    // Authentication
     "post-login" => ["POST" => "AuthController@handleLogin"],
     "post-register" => ["POST" => "AuthController@handleRegister"],
+    "post-forgot-password" => ["POST" => "AuthController@handleForgotPassword"],
+    "post-change-password" => ["POST" => "AuthController@handleChangePassword"],
+    "get-admin-password-requests" => ["GET" => "AuthController@listPendingPasswordRequests"],
+    "post-admin-process-password-request" => ["POST" => "AuthController@handleAdminPasswordRequestAction"],
 ];
 
 // Kiểm tra route hợp lệ
