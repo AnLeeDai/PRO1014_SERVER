@@ -290,24 +290,27 @@ class AuthController
 
         $page = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT, ['options' => ['default' => 1, 'min_range' => 1]]);
         $limit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT, ['options' => ['default' => 10, 'min_range' => 1, 'max_range' => 100]]);
-        $sortBy = filter_input(INPUT_GET, 'sort_by', FILTER_SANITIZE_SPECIAL_CHARS) ?: 'desc';
+        $sortBy = filter_input(INPUT_GET, 'sort_by', FILTER_SANITIZE_SPECIAL_CHARS) ?: 'created_at';
         $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_SPECIAL_CHARS) ?: '';
         $status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_SPECIAL_CHARS) ?: 'pending';
 
         $result = $this->authModel->getPasswordRequests($page, $limit, $sortBy, $search, $status);
 
-        Utils::respond(
-            Utils::buildPaginatedResponse(
-                true,
-                "Lấy danh sách yêu cầu đổi mật khẩu thành công.",
-                $result['requests'] ?? [],
-                $page,
-                $limit,
-                $result['total'] ?? 0,
-                ['search' => $search, 'status' => $status, 'sort_by' => $sortBy]
-            ),
-            200
-        );
+        $filters = [
+            'sort_by' => $sortBy,
+            'search' => $search,
+            'status' => $status
+        ];
+
+        Utils::respond(Utils::buildPaginatedResponse(
+            true,
+            "Lấy danh sách yêu cầu đổi mật khẩu thành công.",
+            $result['requests'] ?? [],
+            $page,
+            $limit,
+            $result['total'] ?? 0,
+            $filters
+        ), 200);
     }
 
     public function handleAdminPasswordRequestAction(): void

@@ -12,7 +12,7 @@ class Authmodel
         $database = new Database();
         $this->conn = $database->getConnection();
         if ($this->conn === null) {
-            error_log("authmodel Error: Failed to get DB connection.");
+            error_log("Authmodel Error: Failed to get DB connection.");
         }
     }
 
@@ -168,63 +168,64 @@ class Authmodel
         }
     }
 
-    public function getPasswordRequests(int $page = 1, int $limit = 10, string $sortBy = 'desc', string $search = '', string $status = 'pending'): array
+    public function getPasswordRequests(
+        int    $page = 1,
+        int    $limit = 10,
+        string $sortBy = 'created_at',
+        string $search = '',
+        string $status = 'pending'
+    ): array
     {
-        if ($this->conn === null) return ['total' => 0, 'requests' => []];
+        $result = ['total' => 0, 'requests' => []];
+        if ($this->conn === null) return $result;
 
-        $offset = ($page - 1) * $limit;
-        $sortBy = strtoupper($sortBy) === 'ASC' ? 'ASC' : 'DESC';
-
-        $countWhereClauses = [];
-        $dataWhereClauses = [];
-        $params = [];
-
-        $allowedStatus = ['pending', 'done', 'rejected'];
-        if (!empty($status) && in_array($status, $allowedStatus)) {
-            $countWhereClauses[] = "status = :status";
-            $dataWhereClauses[] = "status = :status";
-            $params[':status'] = $status;
+        $allowedSortColumns = ['id', 'username', 'email', 'created_at', 'status'];
+        if (!in_array($sortBy, $allowedSortColumns)) {
+            $sortBy = 'created_at';
         }
 
+        $sortDirection = 'DESC';
+
+        $offset = ($page - 1) * $limit;
+
+        $whereSql = "";
+        $params = [];
+        $allowedStatus = ['pending', 'done', 'rejected'];
+        if (!empty($status) && in_array($status, $allowedStatus)) {
+            $whereSql .= (empty($whereSql) ? "WHERE " : " AND ") . "status = :status";
+            $params[':status'] = $status;
+        }
         if (!empty($search)) {
-            $searchCondition = "(email LIKE :search OR username LIKE :search)";
-            $countWhereClauses[] = $searchCondition;
-            $dataWhereClauses[] = $searchCondition;
+            $whereSql .= (empty($whereSql) ? "WHERE " : " AND ") . "(username LIKE :search OR email LIKE :search)";
             $params[':search'] = '%' . $search . '%';
         }
 
-        $whereSql = !empty($dataWhereClauses) ? "WHERE " . implode(" AND ", $dataWhereClauses) : "";
-        $countWhereSql = !empty($countWhereClauses) ? "WHERE " . implode(" AND ", $countWhereClauses) : "";
-
         try {
-            $countQuery = "SELECT COUNT(*) FROM {$this->password_requests_table} {$countWhereSql}";
+            $countQuery = "SELECT COUNT(*) FROM {$this->password_requests_table} {$whereSql}";
             $stmtCount = $this->conn->prepare($countQuery);
             $stmtCount->execute($params);
             $totalItems = (int)$stmtCount->fetchColumn();
+            $result['total'] = $totalItems;
 
             if ($totalItems === 0) {
-                return ['total' => 0, 'requests' => []];
+                return $result;
             }
 
-            // Lấy dữ liệu theo trang
             $dataQuery = "SELECT id, username, email, created_at, status
                            FROM {$this->password_requests_table} {$whereSql}
-                           ORDER BY created_at {$sortBy}
+                           ORDER BY {$sortBy} {$sortDirection} 
                            LIMIT :limit OFFSET :offset";
 
             $stmtData = $this->conn->prepare($dataQuery);
-
             foreach ($params as $key => $value) {
                 $stmtData->bindValue($key, $value);
             }
-
             $stmtData->bindValue(':limit', $limit, PDO::PARAM_INT);
             $stmtData->bindValue(':offset', $offset, PDO::PARAM_INT);
             $stmtData->execute();
-            $requests = $stmtData->fetchAll(PDO::FETCH_ASSOC);
+            $result['requests'] = $stmtData->fetchAll(PDO::FETCH_ASSOC);
 
-            return ['total' => $totalItems, 'requests' => $requests];
-
+            return $result;
         } catch (PDOException $e) {
             error_log("DB Error getting password requests: " . $e->getMessage());
             return ['total' => 0, 'requests' => []];

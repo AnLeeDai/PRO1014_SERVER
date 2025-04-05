@@ -113,6 +113,16 @@ $routes = [
     "post-change-password" => ["POST" => "AuthController@handleChangePassword"],
     "get-admin-password-requests" => ["GET" => "AuthController@listPendingPasswordRequests"],
     "post-admin-process-password-request" => ["POST" => "AuthController@handleAdminPasswordRequestAction"],
+
+    // Categories
+    "get-category" => ["GET" => "CategoryController@handleListCategories"],
+    "post-category" => ["POST" => "CategoryController@handleCreateCategory"],
+    "put-category" => ["PUT" => "CategoryController@handleUpdateCategory"],
+    "post-hide-category" => ["POST" => "CategoryController@handleHideCategory"],
+    "post-unhide-category" => ["POST" => "CategoryController@handleUnhideCategory"],
+
+    // Users
+    "get-users" => ["GET" => "UserController@handleListUsers"],
 ];
 
 // Kiểm tra route hợp lệ
