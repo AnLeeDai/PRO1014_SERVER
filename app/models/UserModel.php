@@ -1,203 +1,209 @@
 <?php
 
-require_once __DIR__ . "/../controllers/AuthController.php";
-require_once __DIR__ . "/../../helper/middleware.php";
-require_once __DIR__ . "/../../helper/utils.php";
-
 class UserModel
 {
     private ?PDO $conn;
-    private static string $table_name = "users";
-    private Middleware $isAdmin;
-    private Utils $utils;
+    private string $users_table = "users";
 
     public function __construct()
     {
         $database = new Database();
         $this->conn = $database->getConnection();
-        $this->isAdmin = new Middleware();
-        $this->utils = new Utils();
+        if ($this->conn === null) {
+            error_log("UserModel Error: Failed to get DB connection.");
+        }
     }
 
-    // Lấy danh sách người dùng có phân trang và sắp xếp
-    public function getAllUser(
-        int $page = 1,
-        int $limit = 10,
-            $sort_by = 'desc',
-            $search = ''
+    public function reactivateUserById(int $userId): bool
+    {
+        if ($this->conn === null) return false;
+
+        try {
+            $query = "UPDATE {$this->users_table}
+                  SET is_active = 1
+                  WHERE user_id = :id AND role = 'user' AND is_active = 0";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':id', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return $stmt->rowCount() > 0;
+        } catch (PDOException $e) {
+            error_log("DB Error reactivating user ID {$userId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function deactivateUserById(int $userId): bool
+    {
+        if ($this->conn === null) return false;
+
+        try {
+            $query = "UPDATE {$this->users_table}
+                  SET is_active = 0
+                  WHERE user_id = :id AND role = 'user' AND is_active = 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':id', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return $stmt->rowCount() > 0;
+        } catch (PDOException $e) {
+            error_log("DB Error deactivating user ID {$userId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function updateUserAvatar(int $userId, string $avatarUrl): bool
+    {
+        if ($this->conn === null) return false;
+
+        try {
+            $query = "UPDATE {$this->users_table}
+                  SET avatar_url = :avatar_url
+                  WHERE user_id = :user_id AND role = 'user'";
+
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':avatar_url', $avatarUrl, PDO::PARAM_STR);
+            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log("UserModel Error updating avatar for user {$userId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function findUserByEmail(string $email): array|false
+    {
+        if ($this->conn === null) return false;
+        try {
+            $query = "SELECT user_id FROM {$this->users_table} WHERE email = :email LIMIT 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+            $stmt->execute();
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("DB Error finding user by email '{$email}': " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function updateUserProfile(
+        int    $userId,
+        string $fullName,
+        string $email,
+        string $phoneNumber,
+        string $address
+    ): bool
+    {
+        if ($this->conn === null) return false;
+
+        try {
+            $query = "UPDATE {$this->users_table}
+                  SET full_name = :full_name,
+                      email = :email,
+                      phone_number = :phone_number,
+                      address = :address
+                  WHERE user_id = :user_id AND role = 'user'";
+
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':full_name', $fullName, PDO::PARAM_STR);
+            $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+            $stmt->bindParam(':phone_number', $phoneNumber, PDO::PARAM_STR);
+            $stmt->bindParam(':address', $address, PDO::PARAM_STR);
+            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log("UserModel Error updating profile for user {$userId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getUserById(int $id): array|false
+    {
+        if ($this->conn === null) return false;
+
+        try {
+            $query = "SELECT user_id, username, full_name, email, phone_number, address, avatar_url, password_changed_at, created_at, role
+                  FROM {$this->users_table}
+                  WHERE user_id = :id AND role = 'user'
+                  LIMIT 1";
+
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("DB Error getting user by ID {$id}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getUsersPaginated(
+        int     $page = 1,
+        int     $limit = 10,
+        string  $sortBy = 'created_at',
+        string  $search = '',
+        ?string $status = null
     ): array
     {
+        $result = ['total' => 0, 'users' => []];
+        if ($this->conn === null) return $result;
+
+        $allowedSortColumns = ['created_at', 'username', 'email', 'full_name'];
+        if (!in_array($sortBy, $allowedSortColumns)) {
+            $sortBy = 'created_at';
+        }
+
+        $offset = ($page - 1) * $limit;
+        $whereConditions = ["role = 'user'"];
+        $params = [];
+
+        if (!empty($search)) {
+            $whereConditions[] = "LOWER(username) LIKE :search";
+            $params[':search'] = '%' . strtolower($search) . '%';
+        }
+
+        // 👇 Thêm điều kiện lọc theo trạng thái
+        if ($status === 'active') {
+            $whereConditions[] = "is_active = 1";
+        } elseif ($status === 'inactive') {
+            $whereConditions[] = "is_active = 0";
+        }
+
+        $whereSql = 'WHERE ' . implode(' AND ', $whereConditions);
+
         try {
-            // Kiểm tra quyền admin
-            $this->isAdmin->IsAdmin();
-
-            // Xác định offset cho phân trang
-            $offset = ($page - 1) * $limit;
-
-            // Kiểm tra giá trị sort_by hợp lệ (chỉ cho phép 'asc' hoặc 'desc')
-            $sort_by = strtolower(trim($sort_by));
-            $allowedSortValues = ['asc', 'desc'];
-            if (!in_array($sort_by, $allowedSortValues)) {
-                $sort_by = 'desc'; // Mặc định giảm dần
-            }
-
-            // Xây dựng điều kiện WHERE
-            $whereConditions = ["role != 'admin'"];
-            $params = [];
-
-            if (!empty($search)) {
-                $whereConditions[] = "username LIKE :search";
-                $params[':search'] = '%' . $search . '%';
-            }
-
-            // Ghép các điều kiện lại thành câu lệnh SQL
-            $whereClause = " WHERE " . implode(" AND ", $whereConditions);
-
-            // Lấy tổng số lượng người dùng
-            $countSql = "SELECT COUNT(*) FROM " . self::$table_name . $whereClause;
-            $stmtCount = $this->conn->prepare($countSql);
-
+            $countQuery = "SELECT COUNT(*) FROM {$this->users_table} {$whereSql}";
+            $stmtCount = $this->conn->prepare($countQuery);
             foreach ($params as $key => $value) {
-                $stmtCount->bindValue($key, $value, PDO::PARAM_STR);
+                $stmtCount->bindValue($key, $value);
             }
             $stmtCount->execute();
-            $totalItems = $stmtCount->fetchColumn();
+            $result['total'] = (int)$stmtCount->fetchColumn();
 
-            // Lấy danh sách người dùng theo trang, có sắp xếp
-            $query = "SELECT * FROM " . self::$table_name . $whereClause;
-            $query .= " ORDER BY user_id " . strtoupper($sort_by);
-            $query .= " LIMIT :limit OFFSET :offset";
+            if ($result['total'] === 0) return $result;
 
-            $stmt = $this->conn->prepare($query);
+            $dataQuery = "SELECT user_id, username, full_name, email, phone_number, address, avatar_url, password_changed_at, created_at, role, is_active
+                      FROM {$this->users_table}
+                      {$whereSql}
+                      ORDER BY {$sortBy} DESC
+                      LIMIT :limit OFFSET :offset";
+            $stmtData = $this->conn->prepare($dataQuery);
             foreach ($params as $key => $value) {
-                $stmt->bindValue($key, $value, PDO::PARAM_STR);
+                $stmtData->bindValue($key, $value);
             }
-            $stmt->bindValue(':limit', (int)$limit, PDO::PARAM_INT);
-            $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
-            $stmt->execute();
-            $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $stmtData->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmtData->bindValue(':offset', $offset, PDO::PARAM_INT);
 
-            // Xóa trường password trước khi trả về
-            foreach ($users as $key => $user) {
-                unset($users[$key]['password']);
-            }
+            $stmtData->execute();
+            $result['users'] = $stmtData->fetchAll(PDO::FETCH_ASSOC);
 
-            // Trả về kết quả JSON
-            return $this->utils->buildResponse(
-                true,
-                "Lấy dữ liệu thành công",
-                $users,
-                $page,
-                $limit,
-                (int)$totalItems,
-                [
-                    "search" => $search,
-                    "sort_by" => $sort_by
-                ]
-            );
+            return $result;
         } catch (PDOException $e) {
-            return $this->utils->buildResponse(
-                false,
-                "Database error: " . $e->getMessage()
-            );
-        }
-    }
-
-    // Lấy thông tin người dùng theo ID
-    public function getUserById(int $user_id): array
-    {
-        try {
-            // Thực hiện truy vấn lấy thông tin người dùng
-            $query = "SELECT * FROM " . self::$table_name . " WHERE user_id = :user_id";
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindValue(':user_id', $user_id, PDO::PARAM_INT);
-            $stmt->execute();
-
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            // Nếu không tìm thấy người dùng trong DB
-            if (!$user) {
-                return $this->utils->buildResponse(false, "Không tìm thấy người dùng");
-            }
-
-            // Kiểm tra nếu user_id đang request khác với user_id trong session
-            if ($_SESSION['user']['user_id'] !== $user_id) {
-                return $this->utils->buildResponse(false, "Bạn không có quyền truy cập thông tin người dùng này");
-            }
-
-            // Xoá trường password trước khi trả về
-            unset($user['password']);
-            unset($user['role']);
-            unset($user['user_id']);
-
-            // Trả về kết quả JSON
-            return $this->utils->buildResponse(true, "Lấy dữ liệu thành công", $user);
-
-        } catch (PDOException $e) {
-            return $this->utils->buildResponse(false, "Database error: " . $e->getMessage());
-        }
-    }
-
-    // Chỉnh sửa thông tin người dùng
-    public function updateUser($userId, $fullName, $email, $phoneNumber, $address): array
-    {
-        try {
-            if (!isset($_SESSION['user']['user_id']) || $_SESSION['user']['user_id'] != $userId) {
-                return [
-                    "success" => false,
-                    "message" => "Bạn không có quyền chỉnh sửa người dùng này"
-                ];
-            }
-
-            // Lấy thông tin cũ
-            $stmt = $this->conn->prepare("SELECT * FROM users WHERE user_id = :user_id");
-            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
-            $stmt->execute();
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$user) {
-                return ["success" => false, "message" => "Không tìm thấy người dùng"];
-            }
-
-            $sql = "UPDATE users SET 
-              full_name = :full_name,
-              email = :email,
-              phone_number = :phone_number,
-              address = :address
-            WHERE user_id = :user_id";
-
-            $stmt = $this->conn->prepare($sql);
-            $stmt->bindParam(':full_name', $fullName);
-            $stmt->bindParam(':email', $email);
-            $stmt->bindParam(':phone_number', $phoneNumber);
-            $stmt->bindParam(':address', $address);
-            $stmt->bindParam(':user_id', $userId);
-            $stmt->execute();
-
-            // Lấy lại user sau khi update
-            $stmt = $this->conn->prepare("SELECT * FROM users WHERE user_id = :user_id");
-            $stmt->bindParam(':user_id', $userId);
-            $stmt->execute();
-            $updatedUser = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            return $this->utils->buildResponse(true, "Chỉnh sửa thông tin thành công", $updatedUser);
-        } catch (PDOException $e) {
-            return $this->utils->buildResponse(false, "Database error: " . $e->getMessage());
-        }
-    }
-
-    // update avatar
-    public function updateAvatar($userId, $avatarPath): array
-    {
-        try {
-            $stmt = $this->conn->prepare("UPDATE users SET avatar_url = :avatar WHERE user_id = :user_id");
-            $stmt->bindParam(':avatar', $avatarPath);
-            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
-            $stmt->execute();
-
-            return $this->utils->buildResponse(true, "Cập nhật ảnh đại diện thành công");
-        } catch (PDOException $e) {
-            return $this->utils->buildResponse(false, "Lỗi database: " . $e->getMessage());
+            error_log("DB Error getting paginated users: " . $e->getMessage());
+            return ['total' => 0, 'users' => []];
         }
     }
 }

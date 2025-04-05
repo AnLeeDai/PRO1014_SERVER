@@ -1,157 +1,273 @@
 <?php
 
-require_once __DIR__ . "/../models/UserModel.php";
-require_once __DIR__ . "/../../helper/utils.php";
-
 class UserController
 {
     private UserModel $userModel;
-    private Utils $utils;
 
     public function __construct()
     {
         $this->userModel = new UserModel();
-        $this->utils = new Utils();
     }
 
-    // Xử lý lấy danh sách user
-    public function handleGetAllUser(): void
+    public function handleReactivateUser(): void
     {
-        // Lấy dữ liệu từ query params
-        $page = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT) ?: 1;
-        $limitPerPage = filter_input(INPUT_GET, 'limitPerPage', FILTER_VALIDATE_INT) ?: 10;
+        $adminData = AuthMiddleware::isAdmin();
 
-
-        // Lấy dữ liệu từ query params
-        $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_SPECIAL_CHARS) ?? '';
-        $sort_by = strtolower($_GET['sort_by'] ?? 'desc');
-
-        // Đảm bảo sort_by chỉ nhận giá trị hợp lệ
-        if (!in_array($sort_by, ['asc', 'desc'])) {
-            $sort_by = 'desc';
+        $data = json_decode(file_get_contents("php://input"), true);
+        $basicErrors = Utils::validateBasicInput($data, ['user_id' => 'ID người dùng không được để trống']);
+        if (!empty($basicErrors)) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'Thiếu ID người dùng.',
+                'errors' => $basicErrors
+            ], 400);
         }
 
-        // Gọi model để lấy danh sách user
-        $users = $this->userModel->getAllUser($page, $limitPerPage, $sort_by, $search);
-
-        $this->utils->respond($users, $users['success'] ? 200 : 400);
-
-        echo json_encode($users);
-    }
-
-    // Lấy thông tin user theo id
-    public function handleGetUserById(): void
-    {
-        if (!isset($_SESSION['user'])) {
-            $this->utils->respond(["success" => false, "message" => "Bạn chưa đăng nhập"], 401);
-            return;
+        $userId = filter_var($data['user_id'], FILTER_VALIDATE_INT);
+        if (!$userId || $userId <= 0) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'ID không hợp lệ.'
+            ], 400);
         }
 
-        // lấy id từ session
-        $id = $_SESSION['user']['user_id'] ?? null;
+        $success = $this->userModel->reactivateUserById($userId);
 
-        // Gọi model để lấy thông tin user
-        $user = $this->userModel->getUserById($id);
-
-        echo json_encode($user);
+        if ($success) {
+            Utils::respond([
+                'success' => true,
+                'message' => "Tài khoản user ID {$userId} đã được mở khóa thành công."
+            ], 200);
+        } else {
+            Utils::respond([
+                'success' => false,
+                'message' => "Không thể mở khóa user ID {$userId}. Có thể user không tồn tại hoặc đang hoạt động."
+            ], 404);
+        }
     }
 
-    // Chỉnh sửa thông tin
-    function handlerEditProfile(): void
+    public function handleDeactivateUser(): void
     {
+        AuthMiddleware::isAdmin();
+
+        $data = json_decode(file_get_contents("php://input"), true);
+        $basicErrors = Utils::validateBasicInput($data, ['user_id' => 'ID người dùng không được để trống']);
+        if (!empty($basicErrors)) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'Thiếu ID người dùng.',
+                'errors' => $basicErrors
+            ], 400);
+        }
+
+        $userId = filter_var($data['user_id'], FILTER_VALIDATE_INT);
+        if (!$userId || $userId <= 0) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'ID không hợp lệ.'
+            ], 400);
+        }
+
+        $success = $this->userModel->deactivateUserById($userId);
+
+        if ($success) {
+            Utils::respond([
+                'success' => true,
+                'message' => "Tài khoản user ID {$userId} đã bị khóa thành công."
+            ], 200);
+        } else {
+            Utils::respond([
+                'success' => false,
+                'message' => "Không thể khóa user ID {$userId}. Có thể user không tồn tại hoặc đã bị khóa trước đó."
+            ], 404);
+        }
+    }
+
+
+    public function handleUpdateAvatar(): void
+    {
+        AuthMiddleware::isUser();
+
+        // Kiểm tra user_id
+        $userId = filter_input(INPUT_POST, 'user_id', FILTER_VALIDATE_INT);
+        if (!$userId || $userId <= 0) {
+            Utils::respond(['success' => false, 'message' => 'ID người dùng không hợp lệ.'], 400);
+        }
+
+        // Kiểm tra user có tồn tại
+        $user = $this->userModel->getUserById($userId);
+        if (!$user) {
+            Utils::respond(['success' => false, 'message' => 'Không tìm thấy người dùng.'], 404);
+        }
+
+        // Kiểm tra file upload
+        if (!isset($_FILES['avatar'])) {
+            Utils::respond(['success' => false, 'message' => 'Vui lòng gửi ảnh avatar.'], 400);
+        }
+
+        $uploadResult = Utils::uploadImage($_FILES['avatar'], 'avatar', $user['username'] ?? null);
+
+        if (!$uploadResult['success']) {
+            Utils::respond(['success' => false, 'message' => 'Lỗi upload ảnh: ' . $uploadResult['message']], 400);
+        }
+
+        $newAvatarUrl = $uploadResult['url'];
+
+        $updated = $this->userModel->updateUserAvatar($userId, $newAvatarUrl);
+
+        if ($updated) {
+            $updatedUser = $this->userModel->getUserById($userId);
+            Utils::respond([
+                'success' => true,
+                'message' => 'Cập nhật ảnh đại diện thành công.',
+                'user' => $updatedUser
+            ], 200);
+        } else {
+            Utils::respond(['success' => false, 'message' => 'Không thể cập nhật ảnh đại diện.'], 500);
+        }
+    }
+
+    public function handleUpdateUserProfile(): void
+    {
+        AuthMiddleware::isUser();
+
         $data = json_decode(file_get_contents("php://input"), true);
 
-        if (!isset($_SESSION['user'])) {
-            $this->utils->respond(["success" => false, "message" => "Bạn chưa đăng nhập"], 401);
-            return;
-        }
-
-        if (!$data) {
-            $this->utils->respond(["success" => false, "message" => "Dữ liệu không hợp lệ"], 400);
-            return;
-        }
-
-        // Validate các trường bắt buộc
-        $this->utils->validateInput($data, [
+        $basicRules = [
+            'user_id' => 'ID người dùng không được để trống',
             'full_name' => 'Họ tên không được để trống',
             'email' => 'Email không được để trống',
-            'phone_number' => 'Số điện thoại không được để trống',
-            'address' => 'Địa chỉ không được để trống',
-        ]);
+        ];
+        $validationErrors = Utils::validateBasicInput($data, $basicRules);
+        if (!empty($validationErrors)) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'Thiếu thông tin bắt buộc.',
+                'errors' => $validationErrors
+            ], 400);
+        }
+
+        // Chuẩn hóa dữ liệu đầu vào
+        $userId = filter_var($data['user_id'], FILTER_VALIDATE_INT);
+        $fullName = trim($data['full_name']);
+        $email = trim($data['email']);
+        $phoneNumber = isset($data['phone_number']) ? trim($data['phone_number']) : null;
+        $address = isset($data['address']) ? trim($data['address']) : null;
+
+        $formatErrors = [];
 
         // Validate định dạng
-        if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            $this->utils->respond(["success" => false, "message" => "Email không hợp lệ"], 400);
-            return;
+        if (!Utils::validateEmailFormat($email)) {
+            $formatErrors['email'] = 'Định dạng email không hợp lệ.';
         }
 
-        if (!preg_match('/^0[0-9]{9,10}$/', $data['phone_number']) || strlen($data['phone_number']) < 10) {
-            $this->utils->respond(["success" => false, "message" => "Số điện thoại không hợp lệ"], 400);
-            return;
+        if (!empty($phoneNumber) && !Utils::validatePhoneNumberVN($phoneNumber)) {
+            $formatErrors['phone_number'] = 'Số điện thoại không hợp lệ.';
         }
 
-        // Gọi model update
-        $result = $this->userModel->updateUser(
-            $_SESSION['user']['user_id'],
-            $data['full_name'],
-            $data['email'],
-            $data['phone_number'],
-            $data['address']
-        );
-
-        // Nếu thành công thì cập nhật lại session
-        if ($result['success']) {
-            $_SESSION['user']['full_name'] = $data['full_name'];
-            $_SESSION['user']['email'] = $data['email'];
-            $_SESSION['user']['phone_number'] = $data['phone_number'];
-            $_SESSION['user']['address'] = $data['address'];
+        if (!empty($formatErrors)) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'Dữ liệu không hợp lệ.',
+                'errors' => $formatErrors
+            ], 400);
         }
 
-        $this->utils->respond($result, $result['success'] ? 200 : 400);
-    }
-
-    function handlerUpdateAvatar(): void
-    {
-        if (!isset($_SESSION['user'])) {
-            $this->utils->respond($this->utils->buildResponse(false, "Bạn chưa đăng nhập"), 401);
-            return;
+        // Kiểm tra user hiện tại
+        $existingUser = $this->userModel->getUserById($userId);
+        if (!$existingUser) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'Không tìm thấy người dùng.'
+            ], 404);
         }
 
-        if (!isset($_FILES['avatar'])) {
-            $this->utils->respond($this->utils->buildResponse(false, "Không tìm thấy file ảnh"), 400);
-            return;
-        }
-
-        $username = $_SESSION['user']['username'] ?? 'user_' . $_SESSION['user']['user_id'];
-
-        // XÓA ẢNH CŨ nếu tồn tại
-        if (!empty($_SESSION['user']['avatar'])) {
-            $oldUrl = $_SESSION['user']['avatar'];
-            $parsedUrl = parse_url($oldUrl);
-            $relativePath = ltrim($parsedUrl['path'] ?? '', '/');
-            $oldFilePath = "C:/laragon/www/" . $relativePath;
-
-            if (file_exists($oldFilePath)) {
-                unlink($oldFilePath);
+        // Nếu email thay đổi → kiểm tra trùng
+        if ($email !== $existingUser['email']) {
+            if ($this->userModel->findUserByEmail($email)) {
+                Utils::respond([
+                    'success' => false,
+                    'message' => 'Email này đã được sử dụng bởi người khác.',
+                    'errors' => ['email' => 'Email đã tồn tại.']
+                ], 409);
             }
         }
 
-        // Upload ảnh mới với tên = username
-        $uploadResult = Utils::uploadImage($_FILES['avatar'], $username, $username);
+        // Cập nhật
+        $success = $this->userModel->updateUserProfile($userId, $fullName, $email, $phoneNumber ?? '', $address ?? '');
 
-        if (!$uploadResult['success']) {
-            $this->utils->respond($this->utils->buildResponse(false, $uploadResult['message']), 400);
+        if ($success) {
+            $updatedUser = $this->userModel->getUserById($userId);
+            Utils::respond([
+                'success' => true,
+                'message' => 'Cập nhật thông tin thành công.',
+                'user' => $updatedUser
+            ], 200);
+        } else {
+            Utils::respond([
+                'success' => false,
+                'message' => 'Cập nhật thất bại hoặc không có thay đổi nào.'
+            ], 500);
+        }
+    }
+
+    public function handleGetUserById(): void
+    {
+        AuthMiddleware::isUser();
+
+        $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+        if ($id === false || $id === null || $id <= 0) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'ID không hợp lệ.'
+            ], 400);
             return;
         }
 
-        // Cập nhật DB & session
-        $this->userModel->updateAvatar($_SESSION['user']['user_id'], $uploadResult['url']);
-        $_SESSION['user']['avatar'] = $uploadResult['url'];
+        $user = $this->userModel->getUserById($id);
 
-        $response = $this->utils->buildResponse(true, "Cập nhật ảnh đại diện thành công", [
-            "avatar_url" => $uploadResult['url']
-        ]);
+        if (!$user) {
+            Utils::respond([
+                'success' => false,
+                'message' => "Không tìm thấy người dùng với ID {$id}."
+            ], 404);
+            return;
+        }
 
-        $this->utils->respond($response);
+        Utils::respond([
+            'success' => true,
+            'message' => 'Lấy thông tin người dùng thành công.',
+            'user' => $user
+        ], 200);
+    }
+
+
+    public function handleListUsers(): void
+    {
+        AuthMiddleware::isAdmin();
+
+        $page = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT, ['options' => ['default' => 1, 'min_range' => 1]]);
+        $limit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT, ['options' => ['default' => 10, 'min_range' => 1, 'max_range' => 100]]);
+        $sortBy = filter_input(INPUT_GET, 'sort_by', FILTER_SANITIZE_SPECIAL_CHARS) ?: 'created_at';
+        $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_SPECIAL_CHARS) ?: '';
+        $status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_SPECIAL_CHARS); // 👈 Thêm lọc trạng thái
+
+        $result = $this->userModel->getUsersPaginated($page, $limit, $sortBy, $search, $status);
+
+        $filters = [
+            'sort_by' => $sortBy,
+            'search' => $search,
+            'status' => $status
+        ];
+
+        Utils::respond(Utils::buildPaginatedResponse(
+            true,
+            "Lấy danh sách người dùng thành công.",
+            $result['users'] ?? [],
+            $page,
+            $limit,
+            $result['total'] ?? 0,
+            $filters
+        ), 200);
     }
 }

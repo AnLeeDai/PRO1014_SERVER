@@ -2,8 +2,6 @@
 
 class Database
 {
-    private $conn;
-
     public function getConnection()
     {
         $host = 'localhost';
@@ -11,7 +9,7 @@ class Database
         $username = 'root';
         $password = '';
 
-        $this->conn = null;
+        $conn = null;
 
         try {
             $dsn = "mysql:host=$host;dbname=$db_name;charset=utf8mb4";
@@ -22,13 +20,13 @@ class Database
                 PDO::ATTR_EMULATE_PREPARES => false,
             ];
 
-            $this->conn = new PDO($dsn, $username, $password, $options);
+            $conn = new PDO($dsn, $username, $password, $options);
         } catch (PDOException $exception) {
             http_response_code(500);
             echo json_encode(["error" => "Không thể kết nối đến cơ sở dữ liệu."]);
             die();
         }
 
-        return $this->conn;
+        return $conn;
     }
 }

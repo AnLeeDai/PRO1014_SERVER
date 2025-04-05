@@ -1,286 +1,364 @@
 <?php
-require_once __DIR__ . "/../../config/database.php";
-require_once __DIR__ . "/../../helper/middleware.php";
-require_once __DIR__ . "/../../helper/utils.php";
+require_once __DIR__ . "/../../config/Database.php";
 
-class AuthModel
+class Authmodel
 {
     private ?PDO $conn;
-    private string $table_name = "users";
-    private Middleware $isAdmin;
-    private Utils $utils;
+    private string $users_table = "users";
+    private string $password_requests_table = "password_requests";
 
     public function __construct()
     {
         $database = new Database();
         $this->conn = $database->getConnection();
-        $this->isAdmin = new Middleware();
-        $this->utils = new Utils();
-    }
-
-    // Đăng ký người dùng
-    public function register(
-        string $username,
-        string $password,
-        string $full_name,
-        string $email,
-        string $phone_number,
-        string $address,
-        string $avatar_url,
-        string $role
-    ): array
-    {
-        try {
-            // Kiểm tra email hoặc tài khoản admin đã tồn tại chưa
-            $queryCheck = "SELECT email, role FROM {$this->table_name} WHERE email = :email OR role = 'admin' LIMIT 1";
-            $stmtCheck = $this->conn->prepare($queryCheck);
-            $stmtCheck->bindParam(':email', $email, PDO::PARAM_STR);
-            $stmtCheck->execute();
-            $existingUser = $stmtCheck->fetch(PDO::FETCH_ASSOC);
-
-            if ($existingUser) {
-                if ($existingUser['email'] === $email) {
-                    return ["success" => false, "message" => "Email đã được sử dụng"];
-                }
-                if ($role === 'admin' && $existingUser['role'] === 'admin') {
-                    return ["success" => false, "message" => "Tài khoản admin đã tồn tại"];
-                }
-            }
-
-            // Chèn dữ liệu mới vào database
-            $queryInsert = "INSERT INTO {$this->table_name} 
-                      (username, password, full_name, email, phone_number, address, avatar_url, role) 
-                      VALUES (:username, :password, :full_name, :email, :phone_number, :address, :avatar_url, :role)";
-            $stmtInsert = $this->conn->prepare($queryInsert);
-            $stmtInsert->execute([
-                'username' => $username,
-                'password' => $password,
-                'full_name' => $full_name,
-                'email' => $email,
-                'phone_number' => $phone_number,
-                'address' => $address,
-                'avatar_url' => $avatar_url,
-                'role' => $role
-            ]);
-
-            return ["success" => true, "message" => "Đăng ký tài khoản thành công"];
-        } catch (PDOException $e) {
-            return ["success" => false, "message" => "Database error: " . $e->getMessage()];
+        if ($this->conn === null) {
+            error_log("Authmodel Error: Failed to get DB connection.");
         }
     }
 
-    // Đăng nhập người dùng
-    public function login(string $username, string $password): array
+    public function getUserAuthVerificationData(int $userId): array|false
     {
+        if ($this->conn === null) return false;
+
         try {
-            $query = "SELECT * FROM {$this->table_name} WHERE username = :username LIMIT 1";
+            $query = "SELECT password, password_changed_at FROM {$this->users_table} WHERE user_id = :user_id LIMIT 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("DB Error getting auth verification data for user ID {$userId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getCurrentPasswordHash(int $userId): string|false
+    {
+        if ($this->conn === null) return false;
+
+        try {
+            $query = "SELECT password FROM {$this->users_table} WHERE user_id = :user_id LIMIT 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchColumn();
+        } catch (PDOException $e) {
+            error_log("DB Error getting current password hash for user ID {$userId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function updateUserPassword(int $userId, string $newHashedPassword): bool
+    {
+        if ($this->conn === null) return false;
+
+        $query = "UPDATE {$this->users_table}
+                  SET password = :password, password_changed_at = NOW()
+                  WHERE user_id = :user_id";
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':password', $newHashedPassword, PDO::PARAM_STR);
+            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log("DB Error updating password for user ID {$userId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function hasAdminAccount(): bool
+    {
+        if ($this->conn === null) {
+            error_log("authmodel::hasAdminAccount Error: Database connection is not available.");
+            return false;
+        }
+        try {
+            $query = "SELECT 1 FROM {$this->users_table} WHERE role = 'admin' LIMIT 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+
+            return $stmt->fetchColumn() !== false;
+
+        } catch (PDOException $e) {
+            error_log("Database error checking for admin account: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function createUser(array $userData): int|false
+    {
+        if ($this->conn === null) return false;
+
+        $fields = implode(', ', array_keys($userData));
+        $placeholders = ':' . implode(', :', array_keys($userData));
+        $query = "INSERT INTO {$this->users_table} ({$fields}) VALUES ({$placeholders})";
+
+        try {
+            $stmt = $this->conn->prepare($query);
+
+            foreach ($userData as $key => &$value) {
+                $paramType = PDO::PARAM_STR;
+                if (is_int($value)) {
+                    $paramType = PDO::PARAM_INT;
+                } elseif (is_bool($value)) {
+                    $paramType = PDO::PARAM_BOOL;
+                } elseif (is_null($value)) {
+                    $paramType = PDO::PARAM_NULL;
+                }
+                $stmt->bindParam(":$key", $value, $paramType);
+            }
+
+            unset($value);
+
+            $success = $stmt->execute();
+
+            if ($success) {
+                return (int)$this->conn->lastInsertId();
+            } else {
+                error_log("DB Error creating user: Failed to execute statement.");
+                error_log(print_r($stmt->errorInfo(), true));
+                return false;
+            }
+        } catch (PDOException $e) {
+            error_log("DB Error creating user: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function hasPendingPasswordRequest(string $username): bool
+    {
+        if ($this->conn === null) {
+            error_log("AuthModel::hasPendingPasswordRequest Error: DB connection unavailable.");
+            return false;
+        }
+        try {
+            $query = "SELECT 1 FROM {$this->password_requests_table}
+                      WHERE username = :username AND status = 'pending'
+                      LIMIT 1";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':username', $username, PDO::PARAM_STR);
             $stmt->execute();
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            if ($user && password_verify($password, $user['password'])) {
-                $_SESSION['user'] = $user;
-                unset($user['password'], $user['user_id']);
+            return $stmt->fetchColumn() !== false;
 
-                return ["success" => true, "message" => "Đăng nhập thành công", "data" => $user];
-            }
-
-            return ["success" => false, "message" => $user ? "Mật khẩu không chính xác" : "Username không tồn tại trên hệ thống"];
         } catch (PDOException $e) {
-            return ["success" => false, "message" => "Database error: " . $e->getMessage()];
+            error_log("DB Error checking for pending password request for '{$username}': " . $e->getMessage());
+            return false;
         }
     }
 
-    // Đổi mật khẩu
-    public function changePassword(string $username, string $old_password, string $new_password): array
+    public function createPasswordResetRequest(string $username, string $email, string $hashedNewPassword): bool
     {
+        if ($this->conn === null) return false;
+
+        $status = 'pending';
+
+        $query = "INSERT INTO {$this->password_requests_table} (username, email, new_password, status)
+                  VALUES (:username, :email, :new_password, :status)";
         try {
-            $query = "SELECT password FROM {$this->table_name} WHERE username = :username LIMIT 1";
             $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':username', $username, PDO::PARAM_STR);
-            $stmt->execute();
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$user) {
-                return ["success" => false, "message" => "Username không tồn tại trên hệ thống"];
-            }
-
-            if (!password_verify($old_password, $user['password'])) {
-                return ["success" => false, "message" => "Mật khẩu cũ không chính xác"];
-            }
-
-            // Cập nhật mật khẩu mới
-            $queryUpdate = "UPDATE {$this->table_name} SET password = :password WHERE username = :username";
-            $stmt = $this->conn->prepare($queryUpdate);
-            $stmt->bindParam(':password', $new_password, PDO::PARAM_STR);
-            $stmt->bindParam(':username', $username, PDO::PARAM_STR);
-            $stmt->execute();
-
-            return ["success" => true, "message" => "Đổi mật khẩu thành công"];
-        } catch (PDOException $e) {
-            return ["success" => false, "message" => "Database error: " . $e->getMessage()];
-        }
-    }
-
-    // Quên mật khẩu
-    public function forgotPassword(string $username, string $email, string $new_password, string $status): array
-    {
-        try {
-            // Kiểm tra username có tồn tại
-            $queryUsername = "SELECT username FROM {$this->table_name} WHERE username = :username LIMIT 1";
-            $stmtUsername = $this->conn->prepare($queryUsername);
-            $stmtUsername->bindParam(':username', $username, PDO::PARAM_STR);
-            $stmtUsername->execute();
-            $userUsername = $stmtUsername->fetch(PDO::FETCH_ASSOC);
-
-            if (!$userUsername) {
-                return ["success" => false, "message" => "Username không tồn tại trên hệ thống"];
-            }
-
-            // Kiểm tra email có tồn tại
-            $queryEmail = "SELECT email FROM {$this->table_name} WHERE email = :email LIMIT 1";
-            $stmtEmail = $this->conn->prepare($queryEmail);
-            $stmtEmail->bindParam(':email', $email, PDO::PARAM_STR);
-            $stmtEmail->execute();
-            $userEmail = $stmtEmail->fetch(PDO::FETCH_ASSOC);
-
-            if (!$userEmail) {
-                return ["success" => false, "message" => "Email không tồn tại trên hệ thống"];
-            }
-
-            // Thêm yêu cầu đổi mật khẩu vào bảng
-            $queryInsert = "INSERT INTO password_requests (username, email, new_password, status) VALUES (:username, :email, :new_password, :status)";
-            $stmt = $this->conn->prepare($queryInsert);
             $stmt->bindParam(':username', $username, PDO::PARAM_STR);
             $stmt->bindParam(':email', $email, PDO::PARAM_STR);
-            $stmt->bindParam(':new_password', $new_password, PDO::PARAM_STR);
+            $stmt->bindParam(':new_password', $hashedNewPassword, PDO::PARAM_STR);
             $stmt->bindParam(':status', $status, PDO::PARAM_STR);
-            $stmt->execute();
-
-            return ["success" => true, "message" => "Yêu cầu đổi mật khẩu đã được ghi nhận, admin sẽ xử lý sơm nhất có thể"];
+            return $stmt->execute();
         } catch (PDOException $e) {
-            return ["success" => false, "message" => "Database error: " . $e->getMessage()];
+            error_log("DB Error creating password reset request for '{$username}': " . $e->getMessage());
+            return false;
         }
     }
 
-    // Lấy danh sách yêu cầu đổi mật khẩu đang chờ xử lý
     public function getPasswordRequests(
         int    $page = 1,
         int    $limit = 10,
-        string $sort_by = 'desc',
+        string $sortBy = 'created_at',
         string $search = '',
         string $status = 'pending'
     ): array
     {
+        $result = ['total' => 0, 'requests' => []];
+        if ($this->conn === null) return $result;
+
+        $allowedSortColumns = ['id', 'username', 'email', 'created_at', 'status'];
+        if (!in_array($sortBy, $allowedSortColumns)) {
+            $sortBy = 'created_at';
+        }
+
+        $sortDirection = 'DESC';
+
+        $offset = ($page - 1) * $limit;
+
+        $whereSql = "";
+        $params = [];
+        $allowedStatus = ['pending', 'done', 'rejected'];
+        if (!empty($status) && in_array($status, $allowedStatus)) {
+            $whereSql .= (empty($whereSql) ? "WHERE " : " AND ") . "status = :status";
+            $params[':status'] = $status;
+        }
+        if (!empty($search)) {
+            $whereSql .= (empty($whereSql) ? "WHERE " : " AND ") . "(username LIKE :search OR email LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
         try {
-            $this->isAdmin->IsAdmin();
-
-            $offset = ($page - 1) * $limit;
-
-            // Validate sort_by
-            $sort_by = strtolower(trim($sort_by));
-            $allowedSortValues = ['asc', 'desc'];
-            if (!in_array($sort_by, $allowedSortValues)) {
-                $sort_by = 'desc';
-            }
-
-            // Validate status
-            $status = strtolower($status);
-            $allowedStatuses = ['pending', 'done'];
-            if (!in_array($status, $allowedStatuses)) {
-                $status = 'pending';
-            }
-
-            // WHERE condition
-            $whereConditions = ["status = :status"];
-            $params = [':status' => $status];
-
-            if (!empty($search)) {
-                $whereConditions[] = "email LIKE :search";
-                $params[':search'] = '%' . $search . '%';
-            }
-
-            $whereClause = " WHERE " . implode(" AND ", $whereConditions);
-
-            // Count total items
-            $countQuery = "SELECT COUNT(*) FROM password_requests" . $whereClause;
+            $countQuery = "SELECT COUNT(*) FROM {$this->password_requests_table} {$whereSql}";
             $stmtCount = $this->conn->prepare($countQuery);
-            foreach ($params as $key => $value) {
-                $stmtCount->bindValue($key, $value, PDO::PARAM_STR);
+            $stmtCount->execute($params);
+            $totalItems = (int)$stmtCount->fetchColumn();
+            $result['total'] = $totalItems;
+
+            if ($totalItems === 0) {
+                return $result;
             }
-            $stmtCount->execute();
-            $totalItems = $stmtCount->fetchColumn();
 
-            // Get list
-            $query = "SELECT id, email, created_at, status
-                FROM password_requests" . $whereClause .
-                " ORDER BY created_at " . strtoupper($sort_by) .
-                " LIMIT :limit OFFSET :offset";
+            $dataQuery = "SELECT id, username, email, created_at, status
+                           FROM {$this->password_requests_table} {$whereSql}
+                           ORDER BY {$sortBy} {$sortDirection} 
+                           LIMIT :limit OFFSET :offset";
 
-            $stmt = $this->conn->prepare($query);
+            $stmtData = $this->conn->prepare($dataQuery);
             foreach ($params as $key => $value) {
-                $stmt->bindValue($key, $value, PDO::PARAM_STR);
+                $stmtData->bindValue($key, $value);
             }
-            $stmt->bindValue(':limit', (int)$limit, PDO::PARAM_INT);
-            $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
-            $stmt->execute();
-            $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $stmtData->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmtData->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $stmtData->execute();
+            $result['requests'] = $stmtData->fetchAll(PDO::FETCH_ASSOC);
 
-            return $this->utils->buildResponse(
-                true,
-                "Lấy dữ liệu thành công",
-                $requests,
-                $page,
-                $limit,
-                (int)$totalItems,
-                [
-                    "search" => $search,
-                    "sort_by" => $sort_by,
-                    "status" => $status
-                ]
-            );
+            return $result;
         } catch (PDOException $e) {
-            return $this->utils->buildResponse(
-                false,
-                "Database error: " . $e->getMessage()
-            );
+            error_log("DB Error getting password requests: " . $e->getMessage());
+            return ['total' => 0, 'requests' => []];
         }
     }
 
-    // Xử lý yêu cầu đổi mật khẩu của admin
-    public function adminChangePassword(int $request_id): array
+    public function getPendingPasswordRequestById(int $requestId): array|false
     {
+        if ($this->conn === null) return false;
+
         try {
-            $this->isAdmin->IsAdmin();
-
-            // Lấy request từ bảng
-            $query = "SELECT email, new_password FROM password_requests WHERE id = :id AND status = 'pending'";
+            $query = "SELECT id, username, email, new_password
+                      FROM {$this->password_requests_table}
+                      WHERE id = :id AND status = 'pending'
+                      LIMIT 1";
             $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':id', $request_id, PDO::PARAM_INT);
+            $stmt->bindParam(':id', $requestId, PDO::PARAM_INT);
             $stmt->execute();
-            $request = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $stmt->fetch(PDO::FETCH_ASSOC);
 
-            if (!$request) {
-                return ["success" => false, "message" => "Yêu cầu không tồn tại hoặc đã được xử lý"];
-            }
-
-            // Cập nhật mật khẩu người dùng
-            $queryUpdate = "UPDATE {$this->table_name} SET password = :password WHERE email = :email";
-            $stmt = $this->conn->prepare($queryUpdate);
-            $stmt->bindParam(':password', $request['new_password'], PDO::PARAM_STR);
-            $stmt->bindParam(':email', $request['email'], PDO::PARAM_STR);
-            $stmt->execute();
-
-            // Cập nhật trạng thái yêu cầu
-            $queryDone = "UPDATE password_requests SET status = 'done' WHERE id = :id";
-            $stmt = $this->conn->prepare($queryDone);
-            $stmt->bindParam(':id', $request_id, PDO::PARAM_INT);
-            $stmt->execute();
-
-            return ["success" => true, "message" => "Đã cập nhật mật khẩu thành công và hoàn tất yêu cầu"];
         } catch (PDOException $e) {
-            return ["success" => false, "message" => "Database error: " . $e->getMessage()];
+            error_log("DB Error getting pending password request by ID {$requestId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getUserLoginDataByUsername(string $username): array|false
+    {
+        if ($this->conn === null) return false;
+
+        try {
+            $query = "SELECT user_id, username, password, full_name, email, role, avatar_url, is_active
+                  FROM {$this->users_table}
+                  WHERE username = :username
+                  LIMIT 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':username', $username, PDO::PARAM_STR);
+            $stmt->execute();
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Database error in authmodel::getUserLoginDataByUsername for user '{$username}': " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function updateUserPasswordByUsername(string $username, string $hashedNewPassword): bool
+    {
+        if ($this->conn === null) return false;
+
+        $query = "UPDATE {$this->users_table} SET password = :password WHERE username = :username";
+
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':password', $hashedNewPassword, PDO::PARAM_STR);
+            $stmt->bindParam(':username', $username, PDO::PARAM_STR);
+            return $stmt->execute();
+
+        } catch (PDOException $e) {
+            error_log("DB Error updating password for user '{$username}': " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function updatePasswordRequestStatus(int $requestId, string $newStatus): bool
+    {
+        if ($this->conn === null) return false;
+
+        if (!in_array($newStatus, ['done', 'rejected'])) {
+            error_log("Invalid status '{$newStatus}' provided for password request update.");
+            return false;
+        }
+
+        $query = "UPDATE {$this->password_requests_table} SET status = :status WHERE id = :id";
+
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':status', $newStatus, PDO::PARAM_STR);
+            $stmt->bindParam(':id', $requestId, PDO::PARAM_INT);
+            return $stmt->execute();
+
+        } catch (PDOException $e) {
+            error_log("DB Error updating status for password request ID {$requestId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function findUserByUsernameAndEmail(string $username, string $email): array|false
+    {
+        if ($this->conn === null) return false;
+        try {
+            $query = "SELECT user_id FROM {$this->users_table}
+                      WHERE username = :username AND email = :email
+                      LIMIT 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':username', $username, PDO::PARAM_STR);
+            $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+            $stmt->execute();
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("DB Error finding user by username AND email ('{$username}', '{$email}'): " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function findUserByUsername(string $username): array|false
+    {
+        if ($this->conn === null) return false;
+
+        try {
+            $query = "SELECT user_id, username FROM {$this->users_table} WHERE username = :username LIMIT 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':username', $username, PDO::PARAM_STR);
+            $stmt->execute();
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("DB Error finding user by username '{$username}': " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function findUserByEmail(string $email): array|false
+    {
+        if ($this->conn === null) return false;
+
+        try {
+            $query = "SELECT user_id, email FROM {$this->users_table} WHERE email = :email LIMIT 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+            $stmt->execute();
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("DB Error finding user by email '{$email}': " . $e->getMessage());
+            return false;
         }
     }
 }
