@@ -257,7 +257,10 @@ class Authmodel
         if ($this->conn === null) return false;
 
         try {
-            $query = "SELECT user_id, username, password, full_name, email, role, avatar_url FROM {$this->users_table} WHERE username = :username LIMIT 1";
+            $query = "SELECT user_id, username, password, full_name, email, role, avatar_url, is_active
+                  FROM {$this->users_table}
+                  WHERE username = :username
+                  LIMIT 1";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':username', $username, PDO::PARAM_STR);
             $stmt->execute();

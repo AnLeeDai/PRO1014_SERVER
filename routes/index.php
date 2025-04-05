@@ -126,6 +126,8 @@ $routes = [
     "get-user-by-id" => ["GET" => "UserController@handleGetUserById"],
     "put-user" => ["PUT" => "UserController@handleUpdateUserProfile"],
     "post-avatar" => ["POST" => "UserController@handleUpdateAvatar"],
+    "post-deactivate-user" => ["POST" => "UserController@handleDeactivateUser"],
+    "post-reactivate_user" => ["POST" => "UserController@handleReactivateUser"],
 ];
 
 // Kiểm tra route hợp lệ

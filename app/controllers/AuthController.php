@@ -125,6 +125,14 @@ class AuthController
         if ($userDataFromDb === false) {
             $loginMessage = 'Tên đăng nhập không tồn tại.';
         } else {
+            // 👉 Kiểm tra nếu tài khoản bị khóa
+            if (isset($userDataFromDb['is_active']) && (int)$userDataFromDb['is_active'] === 0) {
+                Utils::respond([
+                    "success" => false,
+                    "message" => "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để biết thêm chi tiết."
+                ], 403);
+            }
+
             if (password_verify($password, $userDataFromDb['password'])) {
                 $isAuthenticated = true;
             } else {

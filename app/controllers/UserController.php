@@ -9,6 +9,81 @@ class UserController
         $this->userModel = new UserModel();
     }
 
+    public function handleReactivateUser(): void
+    {
+        $adminData = AuthMiddleware::isAdmin();
+
+        $data = json_decode(file_get_contents("php://input"), true);
+        $basicErrors = Utils::validateBasicInput($data, ['user_id' => 'ID người dùng không được để trống']);
+        if (!empty($basicErrors)) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'Thiếu ID người dùng.',
+                'errors' => $basicErrors
+            ], 400);
+        }
+
+        $userId = filter_var($data['user_id'], FILTER_VALIDATE_INT);
+        if (!$userId || $userId <= 0) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'ID không hợp lệ.'
+            ], 400);
+        }
+
+        $success = $this->userModel->reactivateUserById($userId);
+
+        if ($success) {
+            Utils::respond([
+                'success' => true,
+                'message' => "Tài khoản user ID {$userId} đã được mở khóa thành công."
+            ], 200);
+        } else {
+            Utils::respond([
+                'success' => false,
+                'message' => "Không thể mở khóa user ID {$userId}. Có thể user không tồn tại hoặc đang hoạt động."
+            ], 404);
+        }
+    }
+
+    public function handleDeactivateUser(): void
+    {
+        AuthMiddleware::isAdmin();
+
+        $data = json_decode(file_get_contents("php://input"), true);
+        $basicErrors = Utils::validateBasicInput($data, ['user_id' => 'ID người dùng không được để trống']);
+        if (!empty($basicErrors)) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'Thiếu ID người dùng.',
+                'errors' => $basicErrors
+            ], 400);
+        }
+
+        $userId = filter_var($data['user_id'], FILTER_VALIDATE_INT);
+        if (!$userId || $userId <= 0) {
+            Utils::respond([
+                'success' => false,
+                'message' => 'ID không hợp lệ.'
+            ], 400);
+        }
+
+        $success = $this->userModel->deactivateUserById($userId);
+
+        if ($success) {
+            Utils::respond([
+                'success' => true,
+                'message' => "Tài khoản user ID {$userId} đã bị khóa thành công."
+            ], 200);
+        } else {
+            Utils::respond([
+                'success' => false,
+                'message' => "Không thể khóa user ID {$userId}. Có thể user không tồn tại hoặc đã bị khóa trước đó."
+            ], 404);
+        }
+    }
+
+
     public function handleUpdateAvatar(): void
     {
         AuthMiddleware::isUser();
@@ -175,12 +250,14 @@ class UserController
         $limit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT, ['options' => ['default' => 10, 'min_range' => 1, 'max_range' => 100]]);
         $sortBy = filter_input(INPUT_GET, 'sort_by', FILTER_SANITIZE_SPECIAL_CHARS) ?: 'created_at';
         $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_SPECIAL_CHARS) ?: '';
+        $status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_SPECIAL_CHARS); // 👈 Thêm lọc trạng thái
 
-        $result = $this->userModel->getUsersPaginated($page, $limit, $sortBy, $search);
+        $result = $this->userModel->getUsersPaginated($page, $limit, $sortBy, $search, $status);
 
         $filters = [
             'sort_by' => $sortBy,
-            'search' => $search
+            'search' => $search,
+            'status' => $status
         ];
 
         Utils::respond(Utils::buildPaginatedResponse(

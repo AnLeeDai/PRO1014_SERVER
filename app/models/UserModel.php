@@ -14,6 +14,44 @@ class UserModel
         }
     }
 
+    public function reactivateUserById(int $userId): bool
+    {
+        if ($this->conn === null) return false;
+
+        try {
+            $query = "UPDATE {$this->users_table}
+                  SET is_active = 1
+                  WHERE user_id = :id AND role = 'user' AND is_active = 0";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':id', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return $stmt->rowCount() > 0;
+        } catch (PDOException $e) {
+            error_log("DB Error reactivating user ID {$userId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function deactivateUserById(int $userId): bool
+    {
+        if ($this->conn === null) return false;
+
+        try {
+            $query = "UPDATE {$this->users_table}
+                  SET is_active = 0
+                  WHERE user_id = :id AND role = 'user' AND is_active = 1";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':id', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return $stmt->rowCount() > 0;
+        } catch (PDOException $e) {
+            error_log("DB Error deactivating user ID {$userId}: " . $e->getMessage());
+            return false;
+        }
+    }
+
     public function updateUserAvatar(int $userId, string $avatarUrl): bool
     {
         if ($this->conn === null) return false;
@@ -103,10 +141,11 @@ class UserModel
     }
 
     public function getUsersPaginated(
-        int    $page = 1,
-        int    $limit = 10,
-        string $sortBy = 'created_at',
-        string $search = ''
+        int     $page = 1,
+        int     $limit = 10,
+        string  $sortBy = 'created_at',
+        string  $search = '',
+        ?string $status = null
     ): array
     {
         $result = ['total' => 0, 'users' => []];
@@ -126,6 +165,13 @@ class UserModel
             $params[':search'] = '%' . strtolower($search) . '%';
         }
 
+        // 👇 Thêm điều kiện lọc theo trạng thái
+        if ($status === 'active') {
+            $whereConditions[] = "is_active = 1";
+        } elseif ($status === 'inactive') {
+            $whereConditions[] = "is_active = 0";
+        }
+
         $whereSql = 'WHERE ' . implode(' AND ', $whereConditions);
 
         try {
@@ -139,11 +185,11 @@ class UserModel
 
             if ($result['total'] === 0) return $result;
 
-            $dataQuery = "SELECT user_id, username, full_name, email, phone_number, address, avatar_url, password_changed_at, created_at, role
-                          FROM {$this->users_table}
-                          {$whereSql}
-                          ORDER BY {$sortBy} DESC
-                          LIMIT :limit OFFSET :offset";
+            $dataQuery = "SELECT user_id, username, full_name, email, phone_number, address, avatar_url, password_changed_at, created_at, role, is_active
+                      FROM {$this->users_table}
+                      {$whereSql}
+                      ORDER BY {$sortBy} DESC
+                      LIMIT :limit OFFSET :offset";
             $stmtData = $this->conn->prepare($dataQuery);
             foreach ($params as $key => $value) {
                 $stmtData->bindValue($key, $value);
