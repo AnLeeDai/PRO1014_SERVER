@@ -158,7 +158,7 @@ $routes = [
     "post-checkout" => ["POST" => "OrderController@handleCheckout"],
     "get-order-history" => ["GET" => "OrderController@handleGetOrderHistory"],
     "post-admin-update-order-status" => ["POST" => "OrderController@handleAdminUpdateOrderStatus"],
-    "get-admin-orders" => ["GET" => "OrderController@handleAdminListAllOrders"],
+    "get-admin-orders" => ["GET" => "OrderController@handleAdminListOrdersPaginated"],
 ];
 
 // Kiểm tra route hợp lệ

@@ -166,12 +166,50 @@ class OrderModel
         }
     }
 
-    public function getAllOrders(): array
+    public function getOrdersPaginated(
+        int    $page = 1,
+        int    $limit = 10,
+        string $sortBy = 'created_at',
+        string $statusFilter = '',
+        string $search = ''
+    ): array
     {
+        $result = ['total' => 0, 'orders' => []];
         $conn = (new Database())->getConnection();
 
+        $allowedSort = ['created_at', 'updated_at', 'status', 'total_price'];
+        if (!in_array($sortBy, $allowedSort)) $sortBy = 'created_at';
+
+        $offset = ($page - 1) * $limit;
+        $params = [];
+        $where = [];
+
+        if (!empty($statusFilter)) {
+            $where[] = "o.status = :status";
+            $params[':status'] = $statusFilter;
+        }
+
+        if (!empty($search)) {
+            $where[] = "(u.full_name LIKE :search OR u.email LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $whereSql = count($where) > 0 ? "WHERE " . implode(" AND ", $where) : "";
+
         try {
-            $query = "
+            $countQuery = "
+            SELECT COUNT(DISTINCT o.id)
+            FROM orders o
+            INNER JOIN users u ON o.user_id = u.user_id
+            {$whereSql}
+        ";
+            $stmtCount = $conn->prepare($countQuery);
+            $stmtCount->execute($params);
+            $result['total'] = (int)$stmtCount->fetchColumn();
+
+            if ($result['total'] === 0) return $result;
+
+            $dataQuery = "
             SELECT 
                 o.id AS id,
                 o.user_id,
@@ -181,7 +219,6 @@ class OrderModel
                 o.updated_at,
                 u.full_name,
                 u.email,
-                
                 GROUP_CONCAT(
                     JSON_OBJECT(
                         'id', oi.id,
@@ -192,27 +229,28 @@ class OrderModel
                         'discount_code', oi.discount_code,
                         'product_name', p.product_name,
                         'thumbnail', p.thumbnail
-                    )
-                    SEPARATOR '||'
+                    ) SEPARATOR '||'
                 ) AS items
-
             FROM orders o
             INNER JOIN users u ON o.user_id = u.user_id
             LEFT JOIN order_items oi ON o.id = oi.order_id
             LEFT JOIN products p ON oi.product_id = p.id
-
-            GROUP BY 
-                o.id, o.user_id, o.total_price, o.status, o.created_at, o.updated_at,
-                u.full_name, u.email
-
-            ORDER BY o.created_at DESC
+            {$whereSql}
+            GROUP BY o.id, o.user_id, o.total_price, o.status, o.created_at, o.updated_at, u.full_name, u.email
+            ORDER BY o.{$sortBy} DESC
+            LIMIT :limit OFFSET :offset
         ";
 
-            $stmt = $conn->prepare($query);
-            $stmt->execute();
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $stmtData = $conn->prepare($dataQuery);
+            foreach ($params as $key => $value) {
+                $stmtData->bindValue($key, $value);
+            }
+            $stmtData->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmtData->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $stmtData->execute();
 
-            // Parse items JSON sau khi lấy về
+            $rows = $stmtData->fetchAll(PDO::FETCH_ASSOC);
+
             foreach ($rows as &$row) {
                 if (!empty($row['items'])) {
                     $itemStrings = explode('||', $row['items']);
@@ -222,11 +260,12 @@ class OrderModel
                 }
             }
 
-            return $rows;
+            $result['orders'] = $rows;
+            return $result;
 
         } catch (PDOException $e) {
-            error_log("DB Error getAllOrders (refactor): " . $e->getMessage());
-            return [];
+            error_log("OrderModel::getOrdersPaginated Error: " . $e->getMessage());
+            return $result;
         }
     }
 }

@@ -146,23 +146,26 @@ class OrderController
 
     }
 
-    public function handleAdminListAllOrders(): void
+    public function handleAdminListOrdersPaginated(): void
     {
         AuthMiddleware::isAdmin();
 
-        $orders = $this->orderModel->getAllOrders();
-        $data = [];
+        $page = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT, ['options' => ['default' => 1, 'min_range' => 1]]);
+        $limit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT, ['options' => ['default' => 10, 'min_range' => 1]]);
+        $sortBy = filter_input(INPUT_GET, 'sort_by', FILTER_SANITIZE_SPECIAL_CHARS) ?: 'created_at';
+        $status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_SPECIAL_CHARS) ?: '';
+        $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_SPECIAL_CHARS) ?: '';
 
-        foreach ($orders as $order) {
-            $items = $this->orderModel->getOrderItems($order['id']);
-            $order['items'] = $items;
-            $data[] = $order;
-        }
+        $result = $this->orderModel->getOrdersPaginated($page, $limit, $sortBy, $status, $search);
 
-        Utils::respond([
-            "success" => true,
-            "message" => "Lấy danh sách tất cả đơn hàng thành công.",
-            "orders" => $data
-        ], 200);
+        Utils::respond(Utils::buildPaginatedResponse(
+            true,
+            "Lấy danh sách đơn hàng thành công.",
+            $result['orders'] ?? [],
+            $page,
+            $limit,
+            $result['total'] ?? 0,
+            ['status' => $status, 'sort_by' => $sortBy, 'search' => $search]
+        ), 200);
     }
 }
