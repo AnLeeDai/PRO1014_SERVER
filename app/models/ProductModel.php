@@ -70,14 +70,21 @@ class ProductModel
         if ($this->conn === null) return false;
 
         try {
-            $where = $includeHidden ? "" : " AND is_active = 1";
-            $stmt = $this->conn->prepare("SELECT * FROM {$this->products_table} WHERE id = :id {$where} LIMIT 1");
+            $where = $includeHidden ? "" : " AND p.is_active = 1";
+            $stmt = $this->conn->prepare("
+            SELECT p.*, c.category_name 
+            FROM {$this->products_table} p
+            LEFT JOIN categories c ON p.category_id = c.category_id
+            WHERE p.id = :id {$where}
+            LIMIT 1
+        ");
             $stmt->bindValue(':id', $id, PDO::PARAM_INT);
             $stmt->execute();
             $product = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($product) {
                 $product['gallery'] = $this->getGalleryByProductId((int)$product['id']);
+                unset($product['category_id']);
             }
 
             return $product;
@@ -214,6 +221,7 @@ class ProductModel
         $result = ['total' => 0, 'products' => []];
         if ($this->conn === null) return $result;
 
+        // Cho phép sắp xếp theo các cột hợp lệ
         $allowedSortColumns = ['id', 'product_name', 'price', 'created_at', 'is_active'];
         if (!in_array($sortBy, $allowedSortColumns)) $sortBy = 'created_at';
 
@@ -222,29 +230,46 @@ class ProductModel
         $where = [];
 
         if (!$includeHidden) {
-            $where[] = "is_active = 1";
+            $where[] = "p.is_active = 1";
         }
 
         if (!empty($search)) {
-            $where[] = "product_name LIKE :search";
+            $where[] = "p.product_name LIKE :search";
             $params[':search'] = "%{$search}%";
         }
 
         if ($categoryId !== null) {
-            $where[] = "category_id = :category_id";
+            $where[] = "p.category_id = :category_id";
             $params[':category_id'] = $categoryId;
         }
 
         $whereClause = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
 
         try {
-            $stmt = $this->conn->prepare("SELECT COUNT(*) FROM {$this->products_table} {$whereClause}");
+            // Đếm tổng số bản ghi
+            $countQuery = "
+            SELECT COUNT(*) 
+            FROM {$this->products_table} p 
+            LEFT JOIN categories c ON p.category_id = c.category_id 
+            {$whereClause}
+        ";
+            $stmt = $this->conn->prepare($countQuery);
             $stmt->execute($params);
             $result['total'] = (int)$stmt->fetchColumn();
 
             if ($result['total'] === 0) return $result;
 
-            $stmt = $this->conn->prepare("SELECT * FROM {$this->products_table} {$whereClause} ORDER BY {$sortBy} DESC LIMIT :limit OFFSET :offset");
+            // Truy vấn danh sách sản phẩm có phân trang
+            $dataQuery = "
+            SELECT p.*, c.category_name 
+            FROM {$this->products_table} p 
+            LEFT JOIN categories c ON p.category_id = c.category_id 
+            {$whereClause}
+            ORDER BY p.{$sortBy} DESC 
+            LIMIT :limit OFFSET :offset
+        ";
+
+            $stmt = $this->conn->prepare($dataQuery);
             foreach ($params as $key => $val) {
                 $stmt->bindValue($key, $val);
             }
@@ -254,8 +279,10 @@ class ProductModel
 
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+            // Gắn thêm gallery ảnh cho mỗi sản phẩm
             foreach ($products as &$product) {
                 $product['gallery'] = $this->getGalleryByProductId((int)$product['id']);
+                unset($product['category_id']); // Không cần trả về category_id nếu đã có category_name
             }
 
             $result['products'] = $products;
