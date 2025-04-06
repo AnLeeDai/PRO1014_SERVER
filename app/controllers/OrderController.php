@@ -133,12 +133,17 @@ class OrderController
             Utils::respond(["success" => false, "message" => "Dữ liệu không hợp lệ."], 400);
         }
 
+        if (!$this->orderModel->orderExists($orderId)) {
+            Utils::respond(["success" => false, "message" => "Đơn hàng không tồn tại."], 404);
+        }
+
         $success = $this->orderModel->updateOrderStatus($orderId, $status);
         if ($success) {
             Utils::respond(["success" => true, "message" => "Cập nhật trạng thái đơn hàng thành công."], 200);
         } else {
             Utils::respond(["success" => false, "message" => "Cập nhật thất bại."], 500);
         }
+
     }
 
     public function handleAdminListAllOrders(): void

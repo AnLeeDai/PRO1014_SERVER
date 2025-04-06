@@ -2,6 +2,20 @@
 
 class OrderModel
 {
+
+    public function orderExists(int $orderId): bool
+    {
+        $conn = (new Database())->getConnection();
+        try {
+            $stmt = $conn->prepare("SELECT COUNT(*) FROM orders WHERE id = :order_id");
+            $stmt->execute([':order_id' => $orderId]);
+            return $stmt->fetchColumn() > 0;
+        } catch (PDOException $e) {
+            error_log("DB Error orderExists: " . $e->getMessage());
+            return false;
+        }
+    }
+
     public function createOrder(int $userId, float $total, array $items): int|false
     {
         $conn = (new Database())->getConnection();
