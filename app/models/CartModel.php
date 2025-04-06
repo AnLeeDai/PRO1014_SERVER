@@ -12,6 +12,52 @@ class CartModel
         $this->conn = (new Database())->getConnection();
     }
 
+    public function deleteCartItem(int $cartId, int $productId): int
+    {
+        try {
+            $stmt = $this->conn->prepare("SELECT COUNT(*) as total FROM {$this->cartItemsTable} WHERE cart_id = :cart_id AND product_id = :product_id");
+            $stmt->execute([
+                ':cart_id' => $cartId,
+                ':product_id' => $productId
+            ]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($result && (int)$result['total'] === 0) {
+                return 0; // Không tồn tại
+            }
+
+            $deleteStmt = $this->conn->prepare("DELETE FROM {$this->cartItemsTable} WHERE cart_id = :cart_id AND product_id = :product_id");
+            $deleteStmt->execute([
+                ':cart_id' => $cartId,
+                ':product_id' => $productId
+            ]);
+
+            return 1;
+        } catch (PDOException $e) {
+            error_log("DB Error deleteCartItem: " . $e->getMessage());
+            return -1;
+        }
+    }
+
+    public function updateCartItemQuantity(int $cartId, int $productId, int $quantity, float $price, ?string $discountCode = null): bool
+    {
+        try {
+            $stmt = $this->conn->prepare("UPDATE {$this->cartItemsTable}
+            SET quantity = :quantity, price = :price, discount_code = :discount_code, created_at = NOW()
+            WHERE cart_id = :cart_id AND product_id = :product_id");
+            return $stmt->execute([
+                ':quantity' => $quantity,
+                ':price' => $price,
+                ':discount_code' => $discountCode,
+                ':cart_id' => $cartId,
+                ':product_id' => $productId
+            ]);
+        } catch (PDOException $e) {
+            error_log("DB Error updateCartItemQuantity: " . $e->getMessage());
+            return false;
+        }
+    }
+
     public function getCartItemsByUser(int $userId): array
     {
         if ($this->conn === null) return [];

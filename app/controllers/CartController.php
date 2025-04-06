@@ -9,6 +9,84 @@ class CartController
         $this->cartModel = new CartModel();
     }
 
+    public function handleDeleteCartItem(): void
+    {
+        $user = AuthMiddleware::isUser();
+        $userId = $user['user_id'];
+
+        $data = json_decode(file_get_contents("php://input"), true);
+        $productId = (int)($data['product_id'] ?? 0);
+
+        if ($productId <= 0) {
+            Utils::respond(["success" => false, "message" => "ID sản phẩm không hợp lệ."], 400);
+        }
+
+        $cartId = $this->cartModel->getPendingCartIdByUser($userId);
+        if (!$cartId) {
+            Utils::respond(["success" => false, "message" => "Không tìm thấy giỏ hàng."], 404);
+        }
+
+        $result = $this->cartModel->deleteCartItem($cartId, $productId);
+
+        if ($result === 0) {
+            Utils::respond(["success" => false, "message" => "Sản phẩm không tồn tại trong giỏ hàng."], 404);
+        } elseif ($result === 1) {
+            Utils::respond(["success" => true, "message" => "Xóa sản phẩm khỏi giỏ hàng thành công."], 200);
+        } else {
+            Utils::respond(["success" => false, "message" => "Lỗi khi xóa sản phẩm khỏi giỏ hàng."], 500);
+        }
+    }
+
+    public function handleUpdateCartItem(): void
+    {
+        $user = AuthMiddleware::isUser();
+        $userId = $user['user_id'];
+
+        $data = json_decode(file_get_contents("php://input"), true);
+        $productId = (int)($data['product_id'] ?? 0);
+        $quantity = (int)($data['quantity'] ?? 0);
+        $discountCode = trim($data['discount_code'] ?? '');
+
+        if ($productId <= 0 || $quantity <= 0) {
+            Utils::respond(["success" => false, "message" => "ID sản phẩm hoặc số lượng không hợp lệ."], 400);
+        }
+
+        $product = $this->cartModel->getProductStockAndPrice($productId);
+        if (!$product) {
+            Utils::respond(["success" => false, "message" => "Sản phẩm không tồn tại hoặc bị ẩn."], 404);
+        }
+
+        $inStock = (int)$product['in_stock'];
+        $originalPrice = (float)$product['price'];
+        $finalPrice = $originalPrice;
+
+        $discountInfo = null;
+        if ($discountCode !== '') {
+            $discountInfo = $this->cartModel->getValidDiscount($productId, $discountCode);
+            if (!$discountInfo) {
+                Utils::respond(["success" => false, "message" => "Mã giảm giá không hợp lệ hoặc hết hạn."], 400);
+            }
+            $discountPercent = (float)$discountInfo['percent_value'];
+            $finalPrice = round($originalPrice * (1 - $discountPercent / 100), 2);
+        }
+
+        $cartId = $this->cartModel->getPendingCartIdByUser($userId);
+        if (!$cartId) {
+            Utils::respond(["success" => false, "message" => "Không tìm thấy giỏ hàng."], 404);
+        }
+
+        if ($quantity > $inStock) {
+            Utils::respond(["success" => false, "message" => "Vượt quá tồn kho, còn {$inStock} sản phẩm."], 400);
+        }
+
+        $success = $this->cartModel->updateCartItemQuantity($cartId, $productId, $quantity, $finalPrice, $discountCode);
+        if ($success) {
+            Utils::respond(["success" => true, "message" => "Cập nhật giỏ hàng thành công!"], 200);
+        } else {
+            Utils::respond(["success" => false, "message" => "Lỗi khi cập nhật giỏ hàng."], 500);
+        }
+    }
+
     public function handleGetCartItems(): void
     {
         $userData = AuthMiddleware::isUser();
