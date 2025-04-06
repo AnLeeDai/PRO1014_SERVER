@@ -147,6 +147,10 @@ $routes = [
     "post-edit-product" => ["POST" => "ProductController@handleUpdateProduct"],
     "post-hide-product" => ["POST" => "ProductController@handleHideProduct"],
     "post-unhide-product" => ["POST" => "ProductController@handleRestoreProduct"],
+
+    // cart
+    "post-cart" => ["POST" => "CartController@handleAddToCart"],
+    "get-cart" => ["GET" => "CartController@handleGetCartItems"],
 ];
 
 // Kiểm tra route hợp lệ
