@@ -139,6 +139,14 @@ $routes = [
     "post-discount" => ["POST" => "DiscountController@handleCreateDiscount"],
     "get-discounts" => ["GET" => "DiscountController@handleListDiscounts"],
     "delete-discount" => ["DELETE" => "DiscountController@handleDeleteDiscount"],
+
+    // Products
+    "post-product" => ["POST" => "ProductController@handleCreateProduct"],
+    "get-products" => ["GET" => "ProductController@handleListProducts"],
+    "get-product-by-id" => ["GET" => "ProductController@handleGetProductById"],
+    "post-edit-product" => ["POST" => "ProductController@handleUpdateProduct"],
+    "post-hide-product" => ["POST" => "ProductController@handleHideProduct"],
+    "post-unhide-product" => ["POST" => "ProductController@handleRestoreProduct"],
 ];
 
 // Kiểm tra route hợp lệ
