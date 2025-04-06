@@ -153,6 +153,9 @@ $routes = [
     "get-cart" => ["GET" => "CartController@handleGetCartItems"],
     "put-cart" => ["PUT" => "CartController@handleUpdateCartItem"],
     "delete-cart-item" => ["DELETE" => "CartController@handleDeleteCartItem"],
+
+    // orders
+    "post-checkout" => ["POST" => "OrderController@handleCheckout"],
 ];
 
 // Kiểm tra route hợp lệ
