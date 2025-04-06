@@ -16,7 +16,7 @@ class ProductController
             Utils::respond(["success" => false, "message" => "ID sản phẩm không hợp lệ."], 400);
         }
 
-        $product = $this->productModel->getProductById($id, true); // true để lấy cả sản phẩm bị ẩn nếu cần
+        $product = $this->productModel->getProductById($id, true);
         if (!$product) {
             Utils::respond(["success" => false, "message" => "Không tìm thấy sản phẩm."], 404);
         }
@@ -34,10 +34,15 @@ class ProductController
         $limit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT, ['options' => ['default' => 10, 'min_range' => 1, 'max_range' => 100]]);
         $sortBy = filter_input(INPUT_GET, 'sort_by', FILTER_SANITIZE_SPECIAL_CHARS) ?: 'created_at';
         $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_SPECIAL_CHARS) ?: '';
+        $categoryId = filter_input(INPUT_GET, 'category_id', FILTER_VALIDATE_INT);
 
-        $result = $this->productModel->getProductsPaginated($page, $limit, $sortBy, $search, false);
+        $result = $this->productModel->getProductsPaginated($page, $limit, $sortBy, $search, false, $categoryId);
 
-        $filters = ['sort_by' => $sortBy, 'search' => $search];
+        $filters = [
+            'sort_by' => $sortBy,
+            'search' => $search,
+            'category_id' => $categoryId
+        ];
 
         Utils::respond(Utils::buildPaginatedResponse(
             true,
@@ -61,7 +66,8 @@ class ProductController
             'product_name' => 'Tên sản phẩm không được để trống',
             'price' => 'Giá sản phẩm không được để trống',
             'short_description' => 'Mô tả ngắn không được để trống',
-            'full_description' => 'Mô tả chi tiết không được để trống'
+            'full_description' => 'Mô tả chi tiết không được để trống',
+            'category_id' => 'Danh mục không được để trống'
         ];
         $errors = Utils::validateBasicInput($data, $requiredFields);
         if (!empty($errors)) {
@@ -73,7 +79,6 @@ class ProductController
             Utils::respond(["success" => false, "message" => "Sản phẩm đã tồn tại."], 409);
         }
 
-        // Upload thumbnail
         if (!isset($files['thumbnail'])) {
             Utils::respond(["success" => false, "message" => "Thiếu ảnh thumbnail."], 400);
         }
@@ -84,10 +89,8 @@ class ProductController
         }
         $data['thumbnail'] = $uploadThumbnail['url'];
 
-        // Tạo sản phẩm
         $productId = $this->productModel->createProduct($data);
 
-        // Upload gallery nếu có
         if ($productId !== false && isset($files['gallery'])) {
             $this->productModel->uploadGalleryImages($productId, $files['gallery'], $productName);
         }
@@ -114,7 +117,8 @@ class ProductController
         $requiredFields = [
             'product_id' => 'ID sản phẩm không được để trống',
             'product_name' => 'Tên sản phẩm không được để trống',
-            'price' => 'Giá không được để trống'
+            'price' => 'Giá không được để trống',
+            'category_id' => 'Danh mục không được để trống'
         ];
         $errors = Utils::validateBasicInput($data, $requiredFields);
         if (!empty($errors)) {
@@ -133,7 +137,6 @@ class ProductController
             }
         }
 
-        // Nếu có ảnh thumbnail mới thì upload
         if (isset($files['thumbnail'])) {
             $uploadThumb = Utils::uploadImage($files['thumbnail'], 'product_thumb', $data['product_name']);
             if (!$uploadThumb['success']) {
