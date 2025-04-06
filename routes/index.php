@@ -134,6 +134,11 @@ $routes = [
     "post-banner" => ["POST" => "BannerController@handleCreateBanner"],
     "post-update-banner" => ["POST" => "BannerController@handleUpdateBanner"],
     "delete-banner" => ["DELETE" => "BannerController@handleDeleteBanner"],
+
+    // Discounts
+    "post-discount" => ["POST" => "DiscountController@handleCreateDiscount"],
+    "get-discounts" => ["GET" => "DiscountController@handleListDiscounts"],
+    "delete-discount" => ["DELETE" => "DiscountController@handleDeleteDiscount"],
 ];
 
 // Kiểm tra route hợp lệ
