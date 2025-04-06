@@ -99,4 +99,65 @@ class OrderController
             "order_id" => $orderId
         ], 200);
     }
+
+    public function handleGetOrderHistory(): void
+    {
+        $user = AuthMiddleware::isUser();
+        $userId = $user['user_id'];
+
+        $orders = $this->orderModel->getOrdersByUser($userId);
+        $data = [];
+
+        foreach ($orders as $order) {
+            $items = $this->orderModel->getOrderItems($order['id']);
+            $order['items'] = $items;
+            $data[] = $order;
+        }
+
+        Utils::respond([
+            "success" => true,
+            "message" => "Lấy lịch sử đơn hàng thành công.",
+            "orders" => $data
+        ], 200);
+    }
+
+    public function handleAdminUpdateOrderStatus(): void
+    {
+        AuthMiddleware::isAdmin();
+
+        $data = json_decode(file_get_contents("php://input"), true);
+        $orderId = (int)($data['order_id'] ?? 0);
+        $status = $data['status'] ?? '';
+
+        if ($orderId <= 0 || !in_array($status, ['pending', 'paid', 'delivered', 'completed', 'cancelled'])) {
+            Utils::respond(["success" => false, "message" => "Dữ liệu không hợp lệ."], 400);
+        }
+
+        $success = $this->orderModel->updateOrderStatus($orderId, $status);
+        if ($success) {
+            Utils::respond(["success" => true, "message" => "Cập nhật trạng thái đơn hàng thành công."], 200);
+        } else {
+            Utils::respond(["success" => false, "message" => "Cập nhật thất bại."], 500);
+        }
+    }
+
+    public function handleAdminListAllOrders(): void
+    {
+        AuthMiddleware::isAdmin();
+
+        $orders = $this->orderModel->getAllOrders();
+        $data = [];
+
+        foreach ($orders as $order) {
+            $items = $this->orderModel->getOrderItems($order['id']);
+            $order['items'] = $items;
+            $data[] = $order;
+        }
+
+        Utils::respond([
+            "success" => true,
+            "message" => "Lấy danh sách tất cả đơn hàng thành công.",
+            "orders" => $data
+        ], 200);
+    }
 }
