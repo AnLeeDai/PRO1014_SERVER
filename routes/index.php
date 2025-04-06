@@ -128,6 +128,12 @@ $routes = [
     "post-avatar" => ["POST" => "UserController@handleUpdateAvatar"],
     "post-deactivate-user" => ["POST" => "UserController@handleDeactivateUser"],
     "post-reactivate_user" => ["POST" => "UserController@handleReactivateUser"],
+
+    // Banners
+    "get-banners" => ["GET" => "BannerController@handleListBannersPaginated"],
+    "post-banner" => ["POST" => "BannerController@handleCreateBanner"],
+    "post-update-banner" => ["POST" => "BannerController@handleUpdateBanner"],
+    "delete-banner" => ["DELETE" => "BannerController@handleDeleteBanner"],
 ];
 
 // Kiểm tra route hợp lệ
