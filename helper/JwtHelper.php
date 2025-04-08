@@ -21,8 +21,9 @@ class JwtHelper
     {
         $header = json_encode(['alg' => $this->alg, 'typ' => 'JWT']);
 
-        $payload['iat'] = time();
-        $payload['exp'] = time() + $expireInSeconds;
+        $now = $payload['iat'] ?? time();
+        $payload['iat'] = $now;
+        $payload['exp'] = $now + $expireInSeconds;
 
         $base64UrlHeader = $this->base64UrlEncode($header);
         $base64UrlPayload = $this->base64UrlEncode(json_encode($payload));

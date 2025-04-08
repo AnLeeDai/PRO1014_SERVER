@@ -54,7 +54,7 @@ class AuthMiddleware
 
             if ($passwordChangedAt !== null) {
                 $passwordChangedTimestamp = strtotime($passwordChangedAt);
-                $allowedSkew = 2; // cho phép lệch 2 giây
+                $allowedSkew = 5;
 
                 if ($passwordChangedTimestamp !== false && $tokenIssuedAt < ($passwordChangedTimestamp - $allowedSkew)) {
                     Utils::respond([
@@ -137,7 +137,7 @@ class AuthMiddleware
 
             if ($passwordChangedAt !== null) {
                 $passwordChangedTimestamp = strtotime($passwordChangedAt);
-                $allowedSkew = 2;
+                $allowedSkew = 5;
 
                 if ($passwordChangedTimestamp !== false && $tokenIssuedAt < ($passwordChangedTimestamp - $allowedSkew)) {
                     Utils::respond([

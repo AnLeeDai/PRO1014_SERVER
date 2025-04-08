@@ -125,7 +125,6 @@ class AuthController
         if ($userDataFromDb === false) {
             $loginMessage = 'Tên đăng nhập không tồn tại.';
         } else {
-            // 👉 Kiểm tra nếu tài khoản bị khóa
             if (isset($userDataFromDb['is_active']) && (int)$userDataFromDb['is_active'] === 0) {
                 Utils::respond([
                     "success" => false,
@@ -141,7 +140,13 @@ class AuthController
         }
 
         if ($isAuthenticated) {
-            $payload = ['user_id' => $userDataFromDb['user_id'], 'username' => $userDataFromDb['username'], 'role' => $userDataFromDb['role']];
+            $now = time();
+            $payload = [
+                'user_id' => $userDataFromDb['user_id'],
+                'username' => $userDataFromDb['username'],
+                'role' => $userDataFromDb['role'],
+                'iat' => $now
+            ];
             $token_lifetime = getenv('JWT_LIFETIME_SECONDS') ?: 3600;
             $token = $this->jwtHelper->generateToken($payload, (int)$token_lifetime);
 
@@ -250,10 +255,11 @@ class AuthController
             Utils::respond(["success" => false, "message" => "Thiếu thông tin.", "errors" => $basicErrors], 400);
         }
 
+        $old_password = $data['old_password'];
+        $new_password = $data['new_password'];
+        $password_confirm = $data['password_confirm'];
+
         $formatErrors = [];
-        $old_password = $data['old_password']; // Không trim
-        $new_password = $data['new_password']; // Không trim
-        $password_confirm = $data['password_confirm']; // Không trim
         if (!Utils::validatePasswordComplexity($new_password)) {
             $formatErrors['new_password'] = 'Mật khẩu mới yếu.';
         }
@@ -267,24 +273,24 @@ class AuthController
             Utils::respond(["success" => false, "message" => "Dữ liệu không hợp lệ.", "errors" => $formatErrors], 400);
         }
 
-        // Xác minh mật khẩu cũ
         $authVerificationData = $this->authModel->getUserAuthVerificationData($userId);
         if ($authVerificationData === false || !isset($authVerificationData['password'])) {
             Utils::respond(["success" => false, "message" => "Không thể xác thực người dùng."], 500);
         }
-        $currentHashedPassword = $authVerificationData['password'];
-        if (!password_verify($old_password, $currentHashedPassword)) {
+
+        if (!password_verify($old_password, $authVerificationData['password'])) {
             Utils::respond(["success" => false, "message" => "Mật khẩu cũ không chính xác."], 401);
         }
 
-        // Hash mật khẩu mới
         $newHashedPassword = password_hash($new_password, PASSWORD_DEFAULT, ['cost' => 12]);
         if ($newHashedPassword === false) {
             Utils::respond(["success" => false, "message" => "Lỗi hệ thống khi xử lý mật khẩu mới."], 500);
         }
 
-        // Cập nhật mật khẩu mới và password_changed_at
-        $updateSuccess = $this->authModel->updateUserPassword($userId, $newHashedPassword);
+        $now = time();
+        $changedAt = date('Y-m-d H:i:s', $now);
+        $updateSuccess = $this->authModel->updateUserPassword($userId, $newHashedPassword, $changedAt);
+
         if ($updateSuccess) {
             Utils::respond(["success" => true, "message" => "Đổi mật khẩu thành công."], 200);
         } else {

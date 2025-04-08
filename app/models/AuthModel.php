@@ -48,16 +48,18 @@ class Authmodel
         }
     }
 
-    public function updateUserPassword(int $userId, string $newHashedPassword): bool
+    public function updateUserPassword(int $userId, string $newHashedPassword, string $changedAt): bool
     {
         if ($this->conn === null) return false;
 
         $query = "UPDATE {$this->users_table}
-                  SET password = :password, password_changed_at = NOW()
-                  WHERE user_id = :user_id";
+              SET password = :password, password_changed_at = :changed_at
+              WHERE user_id = :user_id";
+
         try {
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':password', $newHashedPassword, PDO::PARAM_STR);
+            $stmt->bindParam(':changed_at', $changedAt, PDO::PARAM_STR);
             $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
             return $stmt->execute();
         } catch (PDOException $e) {
