@@ -35,13 +35,20 @@ class ProductController
         $sortBy = filter_input(INPUT_GET, 'sort_by', FILTER_SANITIZE_SPECIAL_CHARS) ?: 'created_at';
         $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_SPECIAL_CHARS) ?: '';
         $categoryId = filter_input(INPUT_GET, 'category_id', FILTER_VALIDATE_INT);
+        $minPrice = filter_input(INPUT_GET, 'min_price', FILTER_VALIDATE_FLOAT);
+        $maxPrice = filter_input(INPUT_GET, 'max_price', FILTER_VALIDATE_FLOAT);
+        $brand = filter_input(INPUT_GET, 'brand', FILTER_SANITIZE_SPECIAL_CHARS);
 
-        $result = $this->productModel->getProductsPaginated($page, $limit, $sortBy, $search, false, $categoryId);
+        $result = $this->productModel->getProductsPaginated($page, $limit, $sortBy, $search, false, $categoryId, $minPrice, $maxPrice,
+        $brand);
 
         $filters = [
             'sort_by' => $sortBy,
             'search' => $search,
-            'category_id' => $categoryId
+            'category_id' => $categoryId,
+            'min_price' => $minPrice,
+            'max_price' => $maxPrice,
+            'brand' => $brand
         ];
 
         Utils::respond(Utils::buildPaginatedResponse(

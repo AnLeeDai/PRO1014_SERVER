@@ -173,7 +173,7 @@ class ProductModel
             $stmt->bindValue(':brand', $data['brand']);
             $stmt->bindValue(':category_id', $data['category_id']);
             $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-            $stmt->bindValue(':in_stock', (int) $data['in_stock'], PDO::PARAM_INT);
+            $stmt->bindValue(':in_stock', (int)$data['in_stock'], PDO::PARAM_INT);
 
             if (!empty($data['thumbnail'])) {
                 $stmt->bindValue(':thumbnail', $data['thumbnail']);
@@ -218,7 +218,10 @@ class ProductModel
         string $sortBy = 'created_at',
         string $search = '',
         bool   $includeHidden = false,
-        ?int   $categoryId = null
+        ?int   $categoryId = null,
+        ?float $minPrice = null,
+        ?float $maxPrice = null,
+        ?string $brand = null
     ): array
     {
         $result = ['total' => 0, 'products' => []];
@@ -246,23 +249,37 @@ class ProductModel
             $params[':category_id'] = $categoryId;
         }
 
+        if ($minPrice !== null) {
+            $where[] = "p.price >= :min_price";
+            $params[':min_price'] = $minPrice;
+        }
+
+        if ($maxPrice !== null) {
+            $where[] = "p.price <= :max_price";
+            $params[':max_price'] = $maxPrice;
+        }
+
+        if (!empty($brand)) {
+            $where[] = "p.brand = :brand";
+            $params[':brand'] = $brand;
+        }
+
         $whereClause = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
 
         try {
-            // Đếm tổng số bản ghi
             $countQuery = "
             SELECT COUNT(*) 
             FROM {$this->products_table} p 
             LEFT JOIN categories c ON p.category_id = c.category_id 
             {$whereClause}
-        ";
+            ";
             $stmt = $this->conn->prepare($countQuery);
             $stmt->execute($params);
             $result['total'] = (int)$stmt->fetchColumn();
 
             if ($result['total'] === 0) return $result;
 
-            // Truy vấn danh sách sản phẩm có phân trang
+
             $dataQuery = "
             SELECT p.*, c.category_name 
             FROM {$this->products_table} p 
@@ -270,7 +287,7 @@ class ProductModel
             {$whereClause}
             ORDER BY p.{$sortBy} DESC 
             LIMIT :limit OFFSET :offset
-        ";
+            ";
 
             $stmt = $this->conn->prepare($dataQuery);
             foreach ($params as $key => $val) {
@@ -285,7 +302,6 @@ class ProductModel
             // Gắn thêm gallery ảnh cho mỗi sản phẩm
             foreach ($products as &$product) {
                 $product['gallery'] = $this->getGalleryByProductId((int)$product['id']);
-                unset($product['category_id']); // Không cần trả về category_id nếu đã có category_name
             }
 
             $result['products'] = $products;
