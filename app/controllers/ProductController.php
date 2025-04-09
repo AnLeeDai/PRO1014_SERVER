@@ -67,7 +67,8 @@ class ProductController
             'price' => 'Giá sản phẩm không được để trống',
             'short_description' => 'Mô tả ngắn không được để trống',
             'full_description' => 'Mô tả chi tiết không được để trống',
-            'category_id' => 'Danh mục không được để trống'
+            'category_id' => 'Danh mục không được để trống',
+            'in_stock' => 'Số lượng tồn kho không được để trống'
         ];
         $errors = Utils::validateBasicInput($data, $requiredFields);
         if (!empty($errors)) {
@@ -88,6 +89,8 @@ class ProductController
             Utils::respond(['success' => false, 'message' => 'Lỗi upload thumbnail: ' . $uploadThumbnail['message']], 400);
         }
         $data['thumbnail'] = $uploadThumbnail['url'];
+
+        $data['in_stock'] = (int)($data['in_stock'] ?? 0);
 
         $productId = $this->productModel->createProduct($data);
 
@@ -118,8 +121,10 @@ class ProductController
             'product_id' => 'ID sản phẩm không được để trống',
             'product_name' => 'Tên sản phẩm không được để trống',
             'price' => 'Giá không được để trống',
-            'category_id' => 'Danh mục không được để trống'
+            'category_id' => 'Danh mục không được để trống',
+            'in_stock' => 'Số lượng tồn kho không được để trống',
         ];
+
         $errors = Utils::validateBasicInput($data, $requiredFields);
         if (!empty($errors)) {
             Utils::respond(["success" => false, "message" => "Thiếu thông tin.", "errors" => $errors], 400);

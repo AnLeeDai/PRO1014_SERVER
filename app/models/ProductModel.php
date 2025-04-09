@@ -113,10 +113,10 @@ class ProductModel
         if ($this->conn === null) return false;
 
         $query = "INSERT INTO {$this->products_table} (
-            product_name, price, thumbnail, short_description, full_description,
+            product_name, price, thumbnail, short_description, full_description, in_stock,
             extra_info, brand, category_id, is_active, created_at, updated_at
         ) VALUES (
-            :product_name, :price, :thumbnail, :short_description, :full_description,
+            :product_name, :price, :thumbnail, :short_description, :full_description, :in_stock,
             :extra_info, :brand, :category_id, 1, NOW(), NOW()
         )";
 
@@ -130,7 +130,8 @@ class ProductModel
                 ':full_description' => $data['full_description'],
                 ':extra_info' => $data['extra_info'],
                 ':brand' => $data['brand'] ?? null,
-                ':category_id' => $data['category_id'] ?? null
+                ':category_id' => $data['category_id'] ?? null,
+                ':in_stock' => $data['in_stock'],
             ]);
             return (int)$this->conn->lastInsertId();
         } catch (PDOException $e) {
@@ -152,7 +153,8 @@ class ProductModel
                 "extra_info = :extra_info",
                 "brand = :brand",
                 "category_id = :category_id",
-                "updated_at = NOW()"
+                "updated_at = NOW()",
+                "in_stock = :in_stock"
             ];
 
             if (!empty($data['thumbnail'])) {
@@ -171,6 +173,7 @@ class ProductModel
             $stmt->bindValue(':brand', $data['brand']);
             $stmt->bindValue(':category_id', $data['category_id']);
             $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+            $stmt->bindValue(':in_stock', (int) $data['in_stock'], PDO::PARAM_INT);
 
             if (!empty($data['thumbnail'])) {
                 $stmt->bindValue(':thumbnail', $data['thumbnail']);
