@@ -16,6 +16,11 @@ class CategoryController
         $sortBy = filter_input(INPUT_GET, 'sort_by', FILTER_SANITIZE_SPECIAL_CHARS) ?: 'category_name';
         $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_SPECIAL_CHARS) ?: '';
 
+        if ($limit === 0) {
+            $page = 1;
+            $limit = PHP_INT_MAX;
+        }
+
         $result = $this->categoryModel->getCategoriesPaginated($page, $limit, $sortBy, $search, false);
 
         $filters = ['sort_by' => $sortBy, 'search' => $search];

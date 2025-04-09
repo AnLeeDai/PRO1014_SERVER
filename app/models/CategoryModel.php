@@ -83,7 +83,7 @@ class CategoryModel
         if (!in_array($sortBy, $allowedSortColumns)) { $sortBy = 'category_name'; }
         $sortDirection = 'ASC';
 
-        $offset = ($page - 1) * $limit;
+        $offset = ($limit === PHP_INT_MAX) ? 0 : (($page - 1) * $limit);
 
         $whereConditions = [];
         $params = [];
