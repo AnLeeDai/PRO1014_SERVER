@@ -146,7 +146,7 @@ $routes = [
     "get-product-by-id" => ["GET" => "ProductController@handleGetProductById"],
     "post-edit-product" => ["POST" => "ProductController@handleUpdateProduct"],
     "post-hide-product" => ["POST" => "ProductController@handleHideProduct"],
-    "post-unhide-product" => ["POST" => "ProductController@handleRestoreProduct"],
+    "post-unhide-product" => ["POST" => "ProductController@handleUnhideProduct"],
 
     // cart
     "post-cart" => ["POST" => "CartController@handleAddToCart"],
