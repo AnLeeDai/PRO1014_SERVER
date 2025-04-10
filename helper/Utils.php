@@ -6,10 +6,10 @@ class Utils
 {
     private const UPLOAD_BASE_PATH = 'C:/laragon/www/uploads';
     private const UPLOAD_DIR_PERMISSIONS = 0775;
-    private const MAX_UPLOAD_SIZE_MB = 5; // Kích thước tối đa (MB)
+    private const MAX_UPLOAD_SIZE_MB = 2; // Kích thước tối đa (MB)
     private const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-    private const DEFAULT_JPG_WEBP_QUALITY = 75; // Chất lượng ảnh (0-100)
-    private const DEFAULT_PNG_COMPRESSION = 6; // Mức nén PNG (0-9)
+    private const DEFAULT_JPG_WEBP_QUALITY = 20; // Chất lượng ảnh (0-100)
+    private const DEFAULT_PNG_COMPRESSION = 9; // Mức nén PNG (0-9)
 
     // --- Validation Constants ---
     private const REGEX_USERNAME = '/^[a-zA-Z0-9_.-]{3,}$/';
