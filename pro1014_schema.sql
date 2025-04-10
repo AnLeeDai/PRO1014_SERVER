@@ -1,344 +1,197 @@
--- phpMyAdmin SQL Dump
--- version 5.2.0
--- https://www.phpmyadmin.net/
---
--- Host: localhost:3306
--- Generation Time: Apr 01, 2025 at 04:25 PM
--- Server version: 8.0.30
--- PHP Version: 8.1.10
-
-SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-START TRANSACTION;
-SET time_zone = "+00:00";
+CREATE DATABASE IF NOT EXISTS pro1014_schema;
+USE pro1014_schema;
 
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
+-- 1) Bảng categories
+CREATE TABLE IF NOT EXISTS categories
+(
+    category_id   INT          NOT NULL AUTO_INCREMENT,
+    category_name VARCHAR(100) NOT NULL,
+    description   TEXT         NULL,
+    created_at    TIMESTAMP  DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TIMESTAMP  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_active     TINYINT(1) DEFAULT 1,
+    PRIMARY KEY (category_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
 
---
--- Database: `pro1014_schema`
---
+-- 2) Bảng users
+CREATE TABLE IF NOT EXISTS users
+(
+    user_id             INT          NOT NULL AUTO_INCREMENT,
+    username            VARCHAR(50)  NOT NULL,
+    password            VARCHAR(255) NOT NULL,
+    full_name           VARCHAR(100) NULL,
+    email               VARCHAR(100) NULL,
+    phone_number        VARCHAR(15)  NULL,
+    address             VARCHAR(255) NULL,
+    avatar_url          VARCHAR(255) NULL,
+    password_changed_at TIMESTAMP    NULL,
+    created_at          TIMESTAMP             DEFAULT CURRENT_TIMESTAMP,
+    role                ENUM ('admin','user') DEFAULT 'user',
+    is_active           TINYINT(1)            DEFAULT 1,
+    PRIMARY KEY (user_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
 
--- --------------------------------------------------------
+-- 3) Bảng products (có liên kết đến categories)
+CREATE TABLE IF NOT EXISTS products
+(
+    id                INT            NOT NULL AUTO_INCREMENT,
+    product_name      VARCHAR(255)   NOT NULL,
+    price             DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+    thumbnail         TEXT           NULL,
+    short_description TEXT           NULL,
+    full_description  LONGTEXT       NULL,
+    extra_info        TEXT           NULL,
+    in_stock          TINYINT(1)              DEFAULT 1,
+    created_at        DATETIME                DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME                DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    brand             VARCHAR(100)   NULL,
+    category_id       INT            NULL,
+    is_active         TINYINT(1)              DEFAULT 1,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_products_category
+        FOREIGN KEY (category_id) REFERENCES categories (category_id)
+            ON UPDATE CASCADE
+            ON DELETE SET NULL
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
 
---
--- Table structure for table `cart`
---
+-- 4) Bảng product_images (liên kết đến products)
+CREATE TABLE IF NOT EXISTS product_images
+(
+    id         INT  NOT NULL AUTO_INCREMENT,
+    product_id INT  NOT NULL,
+    image_url  TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_product_images_product
+        FOREIGN KEY (product_id) REFERENCES products (id)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
 
-CREATE TABLE `cart` (
-  `cart_id` int NOT NULL,
-  `user_id` int DEFAULT NULL,
-  `created_at` datetime DEFAULT NULL,
-  `updated_at` datetime DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+-- 5) Bảng discounts (liên kết đến products)
+CREATE TABLE IF NOT EXISTS discounts
+(
+    id             INT           NOT NULL AUTO_INCREMENT,
+    discount_code  VARCHAR(100)  NOT NULL,
+    percent_value  DECIMAL(5, 2) NOT NULL DEFAULT 0.00,
+    product_id     INT           NOT NULL,
+    quantity       INT                    DEFAULT 0,
+    total_quantity INT                    DEFAULT 0,
+    start_date     DATETIME      NOT NULL,
+    end_date       DATETIME      NOT NULL,
+    created_at     DATETIME               DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME               DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_discounts_product
+        FOREIGN KEY (product_id) REFERENCES products (id)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
 
--- --------------------------------------------------------
+-- 6) Bảng banners
+CREATE TABLE IF NOT EXISTS banners
+(
+    id         INT          NOT NULL AUTO_INCREMENT,
+    title      VARCHAR(255) NOT NULL,
+    image_url  TEXT         NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
 
---
--- Table structure for table `cart_items`
---
+-- 7) Bảng password_requests
+CREATE TABLE IF NOT EXISTS password_requests
+(
+    id           INT          NOT NULL AUTO_INCREMENT,
+    email        VARCHAR(255) NOT NULL,
+    new_password TEXT         NOT NULL,
+    created_at   TIMESTAMP                          DEFAULT CURRENT_TIMESTAMP,
+    status       ENUM ('pending','done','rejected') DEFAULT 'pending',
+    username     VARCHAR(255) NOT NULL,
+    PRIMARY KEY (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
 
-CREATE TABLE `cart_items` (
-  `cart_item_id` int NOT NULL,
-  `cart_id` int DEFAULT NULL,
-  `product_id` int DEFAULT NULL,
-  `quantity` int DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+-- 8) Bảng carts (liên kết đến users)
+CREATE TABLE IF NOT EXISTS carts
+(
+    id         INT NOT NULL AUTO_INCREMENT,
+    user_id    INT NOT NULL,
+    created_at DATETIME                     DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME                     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    status     ENUM ('pending','completed') DEFAULT 'pending',
+    PRIMARY KEY (id),
+    CONSTRAINT fk_carts_user
+        FOREIGN KEY (user_id) REFERENCES users (user_id)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
 
--- --------------------------------------------------------
+-- 9) Bảng cart_items (liên kết đến carts và products)
+CREATE TABLE IF NOT EXISTS cart_items
+(
+    id            INT            NOT NULL AUTO_INCREMENT,
+    cart_id       INT            NOT NULL,
+    product_id    INT            NOT NULL,
+    quantity      INT            NOT NULL DEFAULT 1,
+    price         DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+    created_at    DATETIME                DEFAULT CURRENT_TIMESTAMP,
+    discount_code VARCHAR(100)   NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_cart_items_cart
+        FOREIGN KEY (cart_id) REFERENCES carts (id)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE,
+    CONSTRAINT fk_cart_items_product
+        FOREIGN KEY (product_id) REFERENCES products (id)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
 
---
--- Table structure for table `categories`
---
+-- 10) Bảng orders (liên kết đến users)
+CREATE TABLE IF NOT EXISTS orders
+(
+    id          INT            NOT NULL AUTO_INCREMENT,
+    user_id     INT            NOT NULL,
+    total_price DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+    status      ENUM ('pending','delivered','completed','cancelled')
+                                        DEFAULT 'pending',
+    created_at  DATETIME                DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME                DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_orders_user
+        FOREIGN KEY (user_id) REFERENCES users (user_id)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
 
-CREATE TABLE `categories` (
-  `category_id` int NOT NULL,
-  `category_name` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `discounts`
---
-
-CREATE TABLE `discounts` (
-  `discount_id` int NOT NULL,
-  `discount_code` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `discount_desc` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `discount_value` decimal(5,2) DEFAULT NULL,
-  `start_date` date DEFAULT NULL,
-  `end_date` date DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `orders`
---
-
-CREATE TABLE `orders` (
-  `order_id` int NOT NULL,
-  `user_id` int DEFAULT NULL,
-  `order_date` datetime DEFAULT NULL,
-  `payment_method` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `shipping_address` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `total_amount` decimal(10,2) DEFAULT NULL,
-  `status` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `discount_id` int DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `order_details`
---
-
-CREATE TABLE `order_details` (
-  `order_id` int NOT NULL,
-  `product_id` int NOT NULL,
-  `quantity` int DEFAULT NULL,
-  `price` decimal(10,2) DEFAULT NULL,
-  `discount_applied` decimal(10,2) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `password_requests`
---
-
-CREATE TABLE `password_requests` (
-  `id` int NOT NULL,
-  `email` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `new_password` text COLLATE utf8mb4_general_ci,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `status` enum('pending','done') COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `username` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `products`
---
-
-CREATE TABLE `products` (
-  `product_id` int NOT NULL,
-  `product_name` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `category_id` int DEFAULT NULL,
-  `description` text COLLATE utf8mb4_general_ci,
-  `price` decimal(10,2) DEFAULT NULL,
-  `stock` int DEFAULT NULL,
-  `image_url` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `product_images`
---
-
-CREATE TABLE `product_images` (
-  `product_image_id` int NOT NULL,
-  `product_id` int DEFAULT NULL,
-  `image_url` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `users`
---
-
-CREATE TABLE `users` (
-  `user_id` int NOT NULL,
-  `username` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `password` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `full_name` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `email` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `phone_number` varchar(15) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `address` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `avatar_url` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `role` enum('user','admin') COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Indexes for dumped tables
---
-
---
--- Indexes for table `cart`
---
-ALTER TABLE `cart`
-  ADD PRIMARY KEY (`cart_id`),
-  ADD KEY `user_id` (`user_id`);
-
---
--- Indexes for table `cart_items`
---
-ALTER TABLE `cart_items`
-  ADD PRIMARY KEY (`cart_item_id`),
-  ADD KEY `cart_id` (`cart_id`),
-  ADD KEY `product_id` (`product_id`);
-
---
--- Indexes for table `categories`
---
-ALTER TABLE `categories`
-  ADD PRIMARY KEY (`category_id`);
-
---
--- Indexes for table `discounts`
---
-ALTER TABLE `discounts`
-  ADD PRIMARY KEY (`discount_id`);
-
---
--- Indexes for table `orders`
---
-ALTER TABLE `orders`
-  ADD PRIMARY KEY (`order_id`),
-  ADD KEY `user_id` (`user_id`),
-  ADD KEY `discount_id` (`discount_id`);
-
---
--- Indexes for table `order_details`
---
-ALTER TABLE `order_details`
-  ADD PRIMARY KEY (`order_id`,`product_id`),
-  ADD KEY `product_id` (`product_id`);
-
---
--- Indexes for table `password_requests`
---
-ALTER TABLE `password_requests`
-  ADD PRIMARY KEY (`id`);
-
---
--- Indexes for table `products`
---
-ALTER TABLE `products`
-  ADD PRIMARY KEY (`product_id`),
-  ADD KEY `category_id` (`category_id`);
-
---
--- Indexes for table `product_images`
---
-ALTER TABLE `product_images`
-  ADD PRIMARY KEY (`product_image_id`),
-  ADD KEY `product_id` (`product_id`);
-
---
--- Indexes for table `users`
---
-ALTER TABLE `users`
-  ADD PRIMARY KEY (`user_id`);
-
---
--- AUTO_INCREMENT for dumped tables
---
-
---
--- AUTO_INCREMENT for table `cart`
---
-ALTER TABLE `cart`
-  MODIFY `cart_id` int NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `cart_items`
---
-ALTER TABLE `cart_items`
-  MODIFY `cart_item_id` int NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `categories`
---
-ALTER TABLE `categories`
-  MODIFY `category_id` int NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `discounts`
---
-ALTER TABLE `discounts`
-  MODIFY `discount_id` int NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `orders`
---
-ALTER TABLE `orders`
-  MODIFY `order_id` int NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `password_requests`
---
-ALTER TABLE `password_requests`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
-
---
--- AUTO_INCREMENT for table `products`
---
-ALTER TABLE `products`
-  MODIFY `product_id` int NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `product_images`
---
-ALTER TABLE `product_images`
-  MODIFY `product_image_id` int NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `users`
---
-ALTER TABLE `users`
-  MODIFY `user_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
-
---
--- Constraints for dumped tables
---
-
---
--- Constraints for table `cart`
---
-ALTER TABLE `cart`
-  ADD CONSTRAINT `cart_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`);
-
---
--- Constraints for table `cart_items`
---
-ALTER TABLE `cart_items`
-  ADD CONSTRAINT `cart_items_ibfk_1` FOREIGN KEY (`cart_id`) REFERENCES `cart` (`cart_id`),
-  ADD CONSTRAINT `cart_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`);
-
---
--- Constraints for table `orders`
---
-ALTER TABLE `orders`
-  ADD CONSTRAINT `orders_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`),
-  ADD CONSTRAINT `orders_ibfk_2` FOREIGN KEY (`discount_id`) REFERENCES `discounts` (`discount_id`);
-
---
--- Constraints for table `order_details`
---
-ALTER TABLE `order_details`
-  ADD CONSTRAINT `order_details_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`),
-  ADD CONSTRAINT `order_details_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`);
-
---
--- Constraints for table `products`
---
-ALTER TABLE `products`
-  ADD CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`category_id`);
-
---
--- Constraints for table `product_images`
---
-ALTER TABLE `product_images`
-  ADD CONSTRAINT `product_images_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`);
-COMMIT;
-
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+-- 11) Bảng order_items (liên kết đến orders và products)
+CREATE TABLE IF NOT EXISTS order_items
+(
+    id            INT            NOT NULL AUTO_INCREMENT,
+    order_id      INT            NOT NULL,
+    product_id    INT            NOT NULL,
+    quantity      INT            NOT NULL DEFAULT 1,
+    price         DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+    discount_code VARCHAR(100)   NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_order_items_order
+        FOREIGN KEY (order_id) REFERENCES orders (id)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE,
+    CONSTRAINT fk_order_items_product
+        FOREIGN KEY (product_id) REFERENCES products (id)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
