@@ -139,6 +139,8 @@ $routes = [
     "post-discount" => ["POST" => "DiscountController@handleCreateDiscount"],
     "get-discounts" => ["GET" => "DiscountController@handleListDiscounts"],
     "delete-discount" => ["DELETE" => "DiscountController@handleDeleteDiscount"],
+    "get-available-discounts-for-product" => ["GET" => "DiscountController@handleGetAvailableDiscountsForProduct"],
+    "post-remove-discount-usage" => ["POST" => "DiscountController@handleRemoveDiscountUsage"],
 
     // Products
     "post-product" => ["POST" => "ProductController@handleCreateProduct"],

@@ -2,7 +2,6 @@
 
 class OrderModel
 {
-
     public function orderExists(int $orderId): bool
     {
         $conn = (new Database())->getConnection();
@@ -16,23 +15,41 @@ class OrderModel
         }
     }
 
-    public function createOrder(int $userId, float $total, array $items): int|false
+    public function createOrder(
+        int    $userId,
+        float  $total,
+        array  $items,
+        string $shippingAddress,
+        string $paymentMethod
+    ): int|false
     {
         $conn = (new Database())->getConnection();
         try {
             $conn->beginTransaction();
 
-            $stmt = $conn->prepare("INSERT INTO orders (user_id, total_price, status, created_at, updated_at) 
-                                    VALUES (:user_id, :total, 'pending', NOW(), NOW())");
+            // Lưu đơn hàng kèm shipping_address, payment_method
+            $stmt = $conn->prepare("
+                INSERT INTO orders 
+                    (user_id, total_price, status, shipping_address, payment_method, created_at, updated_at) 
+                VALUES 
+                    (:user_id, :total_price, 'pending', :shipping_address, :payment_method, NOW(), NOW())
+            ");
             $stmt->execute([
                 ':user_id' => $userId,
-                ':total' => $total
+                ':total_price' => $total,
+                ':shipping_address' => $shippingAddress,
+                ':payment_method' => $paymentMethod,
             ]);
+
             $orderId = $conn->lastInsertId();
 
-            $stmtItem = $conn->prepare("INSERT INTO order_items 
-                (order_id, product_id, quantity, price, discount_code) 
-                VALUES (:order_id, :product_id, :quantity, :price, :discount_code)");
+            // Lưu các item của đơn
+            $stmtItem = $conn->prepare("
+                INSERT INTO order_items 
+                    (order_id, product_id, quantity, price, discount_code) 
+                VALUES 
+                    (:order_id, :product_id, :quantity, :price, :discount_code)
+            ");
 
             foreach ($items as $item) {
                 $stmtItem->execute([
@@ -77,10 +94,12 @@ class OrderModel
     {
         $conn = (new Database())->getConnection();
         try {
-            $stmt = $conn->prepare("SELECT oi.*, p.product_name, p.thumbnail
+            $stmt = $conn->prepare("
+                SELECT oi.*, p.product_name, p.thumbnail
                 FROM order_items oi
                 INNER JOIN products p ON oi.product_id = p.id
-                WHERE oi.order_id = :order_id");
+                WHERE oi.order_id = :order_id
+            ");
             $stmt->execute([':order_id' => $orderId]);
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
@@ -117,7 +136,11 @@ class OrderModel
 
                 foreach ($items as $item) {
                     // Trừ tồn kho sản phẩm
-                    $stmtProduct = $conn->prepare("UPDATE products SET in_stock = in_stock - :qty WHERE id = :product_id");
+                    $stmtProduct = $conn->prepare("
+                        UPDATE products 
+                        SET in_stock = in_stock - :qty 
+                        WHERE id = :product_id
+                    ");
                     $stmtProduct->execute([
                         ':qty' => $item['quantity'],
                         ':product_id' => $item['product_id']
@@ -125,8 +148,11 @@ class OrderModel
 
                     // Nếu có mã giảm giá thì trừ số lượng
                     if (!empty($item['discount_code'])) {
-                        $stmtDiscount = $conn->prepare("UPDATE discounts SET quantity = quantity - :qty 
-                                                    WHERE product_id = :product_id AND discount_code = :code");
+                        $stmtDiscount = $conn->prepare("
+                            UPDATE discounts 
+                            SET quantity = quantity - :qty
+                            WHERE product_id = :product_id AND discount_code = :code
+                        ");
                         $stmtDiscount->execute([
                             ':qty' => $item['quantity'],
                             ':product_id' => $item['product_id'],
@@ -197,6 +223,7 @@ class OrderModel
         $whereSql = count($where) > 0 ? "WHERE " . implode(" AND ", $where) : "";
 
         try {
+            // Đếm tổng số bản ghi
             $countQuery = "
             SELECT COUNT(DISTINCT o.id)
             FROM orders o
@@ -217,6 +244,8 @@ class OrderModel
                 o.status,
                 o.created_at,
                 o.updated_at,
+                o.payment_method, 
+                o.shipping_address,
                 u.full_name,
                 u.email,
                 GROUP_CONCAT(
@@ -236,7 +265,17 @@ class OrderModel
             LEFT JOIN order_items oi ON o.id = oi.order_id
             LEFT JOIN products p ON oi.product_id = p.id
             {$whereSql}
-            GROUP BY o.id, o.user_id, o.total_price, o.status, o.created_at, o.updated_at, u.full_name, u.email
+            GROUP BY 
+                o.id, 
+                o.user_id, 
+                o.total_price, 
+                o.status, 
+                o.created_at, 
+                o.updated_at,
+                o.payment_method,  
+                o.shipping_address,
+                u.full_name, 
+                u.email
             ORDER BY o.{$sortBy} DESC
             LIMIT :limit OFFSET :offset
         ";
@@ -251,6 +290,7 @@ class OrderModel
 
             $rows = $stmtData->fetchAll(PDO::FETCH_ASSOC);
 
+            // Tách items
             foreach ($rows as &$row) {
                 if (!empty($row['items'])) {
                     $itemStrings = explode('||', $row['items']);

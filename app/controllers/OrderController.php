@@ -5,10 +5,13 @@ class OrderController
     private OrderModel $orderModel;
     private CartModel $cartModel;
 
+    private DiscountModel $discountModel;
+
     public function __construct()
     {
         $this->orderModel = new OrderModel();
         $this->cartModel = new CartModel();
+        $this->discountModel = new DiscountModel();
     }
 
     public function handleCheckout(): void
@@ -19,8 +22,19 @@ class OrderController
         $data = json_decode(file_get_contents("php://input"), true);
         $type = $data['type'] ?? '';
 
+        $shippingAddress = trim($data['shipping_address'] ?? '');
+        $paymentMethod = trim($data['payment_method'] ?? 'bank_transfer');
+        $validMethods = ['bank_transfer', 'visa', 'cash'];
+
+        if (!in_array($paymentMethod, $validMethods)) {
+            $paymentMethod = 'bank_transfer';
+        }
+
         if (!in_array($type, ['buy_now', 'from_cart'])) {
-            Utils::respond(["success" => false, "message" => "Loại thanh toán không hợp lệ."], 400);
+            Utils::respond([
+                "success" => false,
+                "message" => "Loại thanh toán không hợp lệ."
+            ], 400);
         }
 
         $orderItems = [];
@@ -48,8 +62,14 @@ class OrderController
                 if (!$discount) {
                     Utils::respond(["success" => false, "message" => "Mã giảm giá không hợp lệ."], 400);
                 }
+
+                if ($this->discountModel->hasUsedDiscount($userId, $discount['id'], $productId)) {
+                    Utils::respond(["success" => false, "message" => "Bạn đã sử dụng mã này cho sản phẩm này."], 400);
+                }
+
                 $finalPrice = round($price * (1 - $discount['percent_value'] / 100), 2);
                 $this->cartModel->decreaseDiscountQuantity($discount['id']);
+                $this->discountModel->recordUsage($userId, $discount['id'], $productId);
             }
 
             $orderItems[] = [
@@ -61,6 +81,13 @@ class OrderController
             $total += $finalPrice * $quantity;
 
         } else if ($type === 'from_cart') {
+            if (empty($shippingAddress)) {
+                Utils::respond([
+                    "success" => false,
+                    "message" => "Vui lòng nhập địa chỉ giao hàng."
+                ], 400);
+            }
+
             $items = $this->cartModel->getCartItemsByUser($userId);
             if (empty($items)) {
                 Utils::respond(["success" => false, "message" => "Giỏ hàng rỗng."], 400);
@@ -78,13 +105,23 @@ class OrderController
                 if (!empty($item['discount_code'])) {
                     $discount = $this->cartModel->getValidDiscount($item['product_id'], $item['discount_code']);
                     if ($discount) {
+                        if ($this->discountModel->hasUsedDiscount($userId, $discount['id'], $item['product_id'])) {
+                            Utils::respond(["success" => false, "message" => "Bạn đã dùng mã {$item['discount_code']} cho sản phẩm này."], 400);
+                        }
                         $this->cartModel->decreaseDiscountQuantity($discount['id']);
+                        $this->discountModel->recordUsage($userId, $discount['id'], $item['product_id']);
                     }
                 }
             }
         }
 
-        $orderId = $this->orderModel->createOrder($userId, $total, $orderItems);
+        $orderId = $this->orderModel->createOrder(
+            $userId,
+            $total,
+            $orderItems,
+            $shippingAddress,
+            $paymentMethod
+        );
 
         if ($type === 'from_cart') {
             $cartId = $this->cartModel->getPendingCartIdByUser($userId);
@@ -143,7 +180,6 @@ class OrderController
         } else {
             Utils::respond(["success" => false, "message" => "Cập nhật thất bại."], 500);
         }
-
     }
 
     public function handleAdminListOrdersPaginated(): void
