@@ -26,7 +26,18 @@ class OrderModel
         try {
             $conn->beginTransaction();
 
-            // Lưu đơn hàng
+            // Kiểm tra tồn kho trước khi lưu đơn
+            foreach ($items as $item) {
+                $stmtCheck = $conn->prepare("SELECT product_name, in_stock FROM products WHERE id = :product_id LIMIT 1");
+                $stmtCheck->execute([':product_id' => $item['product_id']]);
+                $product = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+                if (!$product || $item['quantity'] > (int)$product['in_stock']) {
+                    $conn->rollBack();
+                    throw new Exception("Sản phẩm '{$product['product_name']}' không đủ số lượng trong kho.");
+                }
+            }
+
             $stmt = $conn->prepare("
                 INSERT INTO orders 
                     (user_id, total_price, status, shipping_address, payment_method, created_at, updated_at) 
@@ -42,7 +53,6 @@ class OrderModel
 
             $orderId = $conn->lastInsertId();
 
-            // Lưu các item của đơn
             $stmtItem = $conn->prepare("
                 INSERT INTO order_items 
                     (order_id, product_id, quantity, price) 
@@ -61,6 +71,10 @@ class OrderModel
 
             $conn->commit();
             return $orderId;
+        } catch (Exception $e) {
+            $conn->rollBack();
+            error_log("Order Error: " . $e->getMessage());
+            return false;
         } catch (PDOException $e) {
             $conn->rollBack();
             error_log("DB Error createOrder: " . $e->getMessage());

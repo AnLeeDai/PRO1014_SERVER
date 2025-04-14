@@ -94,7 +94,6 @@ try {
     }
 
     unset($initAuthModel);
-
 } catch (\Throwable $e) {
     error_log("[Auto Init] CRITICAL ERROR during initial admin check/creation: " . $e->getMessage());
     http_response_code(500);
@@ -207,4 +206,3 @@ if (isset($routes[$request])) {
 http_response_code(404);
 echo json_encode(["error" => "Invalid API request (Route key not found)"]);
 exit();
-

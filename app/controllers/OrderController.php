@@ -81,6 +81,16 @@ class OrderController
             }
         }
 
+        foreach ($orderItems as $item) {
+            $product = $this->cartModel->getProductStockAndPrice($item['product_id']);
+            if (!$product || $item['quantity'] > (int)$product['in_stock']) {
+                Utils::respond([
+                    "success" => false,
+                    "message" => "Sản phẩm '{$product['product_name']}' không còn đủ số lượng trong kho."
+                ], 400);
+            }
+        }
+
         $orderId = $this->orderModel->createOrder(
             $userId,
             $total,
