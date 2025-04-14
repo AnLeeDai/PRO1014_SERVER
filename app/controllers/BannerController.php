@@ -139,5 +139,4 @@ class BannerController
             ]
         ], 201);
     }
-
 }

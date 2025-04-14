@@ -44,30 +44,10 @@ class CartController
 
         $data = json_decode(file_get_contents("php://input"), true);
         $productId = (int)($data['product_id'] ?? 0);
-        $quantity = (int)($data['quantity'] ?? 0);
-        $discountCode = trim($data['discount_code'] ?? '');
+        $newQty = (int)($data['quantity'] ?? 0);
 
-        if ($productId <= 0 || $quantity <= 0) {
+        if ($productId <= 0 || $newQty <= 0) {
             Utils::respond(["success" => false, "message" => "ID sản phẩm hoặc số lượng không hợp lệ."], 400);
-        }
-
-        $product = $this->cartModel->getProductStockAndPrice($productId);
-        if (!$product) {
-            Utils::respond(["success" => false, "message" => "Sản phẩm không tồn tại hoặc bị ẩn."], 404);
-        }
-
-        $inStock = (int)$product['in_stock'];
-        $originalPrice = (float)$product['price'];
-        $finalPrice = $originalPrice;
-
-        $discountInfo = null;
-        if ($discountCode !== '') {
-            $discountInfo = $this->cartModel->getValidDiscount($productId, $discountCode);
-            if (!$discountInfo) {
-                Utils::respond(["success" => false, "message" => "Mã giảm giá không hợp lệ hoặc hết hạn."], 400);
-            }
-            $discountPercent = (float)$discountInfo['percent_value'];
-            $finalPrice = round($originalPrice * (1 - $discountPercent / 100), 2);
         }
 
         $cartId = $this->cartModel->getPendingCartIdByUser($userId);
@@ -75,16 +55,33 @@ class CartController
             Utils::respond(["success" => false, "message" => "Không tìm thấy giỏ hàng."], 404);
         }
 
-        if ($quantity > $inStock) {
+        $oldItem = $this->cartModel->getCartItem($cartId, $productId);
+        $oldQty = (int)($oldItem['quantity'] ?? 0);
+
+        $product = $this->cartModel->getProductStockAndPrice($productId);
+        if (!$product) {
+            Utils::respond(["success" => false, "message" => "Sản phẩm không tồn tại hoặc bị ẩn."], 404);
+        }
+        $inStock = (int)$product['in_stock'];
+        $originalPrice = (float)$product['price'];
+
+        if ($newQty > $inStock) {
             Utils::respond(["success" => false, "message" => "Vượt quá tồn kho, còn {$inStock} sản phẩm."], 400);
         }
 
-        $success = $this->cartModel->updateCartItemQuantity($cartId, $productId, $quantity, $finalPrice, $discountCode);
-        if ($success) {
-            Utils::respond(["success" => true, "message" => "Cập nhật giỏ hàng thành công!"], 200);
-        } else {
+        $success = $this->cartModel->updateCartItemQuantity(
+            $cartId,
+            $productId,
+            $newQty,
+            $originalPrice,
+            ''
+        );
+
+        if (!$success) {
             Utils::respond(["success" => false, "message" => "Lỗi khi cập nhật giỏ hàng."], 500);
         }
+
+        Utils::respond(["success" => true, "message" => "Cập nhật giỏ hàng thành công!"], 200);
     }
 
     public function handleGetCartItems(): void
@@ -119,7 +116,6 @@ class CartController
 
         $productId = (int)$data['product_id'];
         $quantity = (int)$data['quantity'];
-        $discountCode = trim($data['discount_code'] ?? '');
 
         if ($productId <= 0 || $quantity <= 0) {
             Utils::respond(["success" => false, "message" => "ID sản phẩm hoặc số lượng không hợp lệ."], 400);
@@ -132,22 +128,6 @@ class CartController
 
         $inStock = (int)$product['in_stock'];
         $originalPrice = (float)$product['price'];
-        $finalPrice = $originalPrice;
-
-        $discountInfo = null;
-        if ($discountCode !== '') {
-            $discountInfo = $this->cartModel->getValidDiscount($productId, $discountCode);
-            if (!$discountInfo) {
-                Utils::respond(["success" => false, "message" => "Mã giảm giá không hợp lệ hoặc hết hạn."], 400);
-            }
-
-            if ((int)$discountInfo['quantity'] <= 0) {
-                Utils::respond(["success" => false, "message" => "Mã giảm giá đã được sử dụng hết."], 400);
-            }
-
-            $discountPercent = (float)$discountInfo['percent_value'];
-            $finalPrice = round($originalPrice * (1 - $discountPercent / 100), 2);
-        }
 
         $cartId = $this->cartModel->getPendingCartIdByUser($userId) ?: $this->cartModel->createCartForUser($userId);
         if (!$cartId) {
@@ -156,16 +136,12 @@ class CartController
 
         $currentQtyInCart = $this->cartModel->getQuantityInCart($cartId, $productId);
         if ($quantity + $currentQtyInCart > $inStock) {
-            Utils::respond(["success" => false, "message" => "Vượt quá số lượng tồn kho. Hiện tại còn {$inStock} sản phẩm."], 400);
+            Utils::respond(["success" => false, "message" => "Vượt quá số lượng tồn kho. Còn {$inStock} sản phẩm."], 400);
         }
 
-        $success = $this->cartModel->addOrUpdateCartItem($cartId, $productId, $quantity, $finalPrice, $discountCode);
+        $success = $this->cartModel->addOrUpdateCartItem($cartId, $productId, $quantity, $originalPrice, '');
 
         if ($success) {
-            if (!empty($discountInfo)) {
-                $this->cartModel->decreaseDiscountQuantity($discountInfo['id']);
-            }
-
             Utils::respond(["success" => true, "message" => "Thêm vào giỏ hàng thành công!"], 200);
         } else {
             Utils::respond(["success" => false, "message" => "Lỗi khi thêm vào giỏ hàng."], 500);

@@ -369,7 +369,6 @@ class AuthController
 
             $this->authModel->updatePasswordRequestStatus($requestId, 'done');
             Utils::respond(["success" => true, "message" => "Đã phê duyệt và cập nhật mật khẩu."], 200);
-
         } elseif ($action === 'reject') {
             $statusUpdateSuccess = $this->authModel->updatePasswordRequestStatus($requestId, 'rejected');
             if ($statusUpdateSuccess) {

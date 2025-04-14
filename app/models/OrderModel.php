@@ -2,7 +2,6 @@
 
 class OrderModel
 {
-
     public function orderExists(int $orderId): bool
     {
         $conn = (new Database())->getConnection();
@@ -16,31 +15,47 @@ class OrderModel
         }
     }
 
-    public function createOrder(int $userId, float $total, array $items): int|false
-    {
+    public function createOrder(
+        int    $userId,
+        float  $total,
+        array  $items,
+        string $shippingAddress,
+        string $paymentMethod
+    ): int|false {
         $conn = (new Database())->getConnection();
         try {
             $conn->beginTransaction();
 
-            $stmt = $conn->prepare("INSERT INTO orders (user_id, total_price, status, created_at, updated_at) 
-                                    VALUES (:user_id, :total, 'pending', NOW(), NOW())");
+            // Lưu đơn hàng
+            $stmt = $conn->prepare("
+                INSERT INTO orders 
+                    (user_id, total_price, status, shipping_address, payment_method, created_at, updated_at) 
+                VALUES 
+                    (:user_id, :total_price, 'pending', :shipping_address, :payment_method, NOW(), NOW())
+            ");
             $stmt->execute([
                 ':user_id' => $userId,
-                ':total' => $total
+                ':total_price' => $total,
+                ':shipping_address' => $shippingAddress,
+                ':payment_method' => $paymentMethod,
             ]);
+
             $orderId = $conn->lastInsertId();
 
-            $stmtItem = $conn->prepare("INSERT INTO order_items 
-                (order_id, product_id, quantity, price, discount_code) 
-                VALUES (:order_id, :product_id, :quantity, :price, :discount_code)");
+            // Lưu các item của đơn
+            $stmtItem = $conn->prepare("
+                INSERT INTO order_items 
+                    (order_id, product_id, quantity, price) 
+                VALUES 
+                    (:order_id, :product_id, :quantity, :price)
+            ");
 
             foreach ($items as $item) {
                 $stmtItem->execute([
                     ':order_id' => $orderId,
                     ':product_id' => $item['product_id'],
                     ':quantity' => $item['quantity'],
-                    ':price' => $item['price'],
-                    ':discount_code' => $item['discount_code']
+                    ':price' => $item['price']
                 ]);
             }
 
@@ -77,10 +92,12 @@ class OrderModel
     {
         $conn = (new Database())->getConnection();
         try {
-            $stmt = $conn->prepare("SELECT oi.*, p.product_name, p.thumbnail
+            $stmt = $conn->prepare("
+                SELECT oi.*, p.product_name, p.thumbnail
                 FROM order_items oi
                 INNER JOIN products p ON oi.product_id = p.id
-                WHERE oi.order_id = :order_id");
+                WHERE oi.order_id = :order_id
+            ");
             $stmt->execute([':order_id' => $orderId]);
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
@@ -110,29 +127,20 @@ class OrderModel
 
             // Nếu trạng thái là delivered hoặc completed thì xử lý thêm
             if (in_array($status, ['delivered', 'completed'])) {
-                // Lấy danh sách sản phẩm trong đơn
                 $stmtItems = $conn->prepare("SELECT * FROM order_items WHERE order_id = :order_id");
                 $stmtItems->execute([':order_id' => $orderId]);
                 $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
                 foreach ($items as $item) {
-                    // Trừ tồn kho sản phẩm
-                    $stmtProduct = $conn->prepare("UPDATE products SET in_stock = in_stock - :qty WHERE id = :product_id");
+                    $stmtProduct = $conn->prepare("
+                        UPDATE products 
+                        SET in_stock = in_stock - :qty 
+                        WHERE id = :product_id
+                    ");
                     $stmtProduct->execute([
                         ':qty' => $item['quantity'],
                         ':product_id' => $item['product_id']
                     ]);
-
-                    // Nếu có mã giảm giá thì trừ số lượng
-                    if (!empty($item['discount_code'])) {
-                        $stmtDiscount = $conn->prepare("UPDATE discounts SET quantity = quantity - :qty 
-                                                    WHERE product_id = :product_id AND discount_code = :code");
-                        $stmtDiscount->execute([
-                            ':qty' => $item['quantity'],
-                            ':product_id' => $item['product_id'],
-                            ':code' => $item['discount_code']
-                        ]);
-                    }
                 }
 
                 // Xóa giỏ hàng pending của user
@@ -140,17 +148,14 @@ class OrderModel
                 $stmtUser->execute([':order_id' => $orderId]);
                 $userId = $stmtUser->fetchColumn();
 
-                // Lấy cart ID
                 $stmtCart = $conn->prepare("SELECT id FROM carts WHERE user_id = :user_id AND status = 'pending'");
                 $stmtCart->execute([':user_id' => $userId]);
                 $cartIds = $stmtCart->fetchAll(PDO::FETCH_COLUMN);
 
                 foreach ($cartIds as $cartId) {
-                    // Xóa item trong cart
                     $stmtDeleteItems = $conn->prepare("DELETE FROM cart_items WHERE cart_id = :cart_id");
                     $stmtDeleteItems->execute([':cart_id' => $cartId]);
 
-                    // Xóa cart
                     $stmtDeleteCart = $conn->prepare("DELETE FROM carts WHERE id = :cart_id");
                     $stmtDeleteCart->execute([':cart_id' => $cartId]);
                 }
@@ -158,7 +163,6 @@ class OrderModel
 
             $conn->commit();
             return true;
-
         } catch (PDOException $e) {
             $conn->rollBack();
             error_log("DB Error updateOrderStatus: " . $e->getMessage());
@@ -172,8 +176,7 @@ class OrderModel
         string $sortBy = 'created_at',
         string $statusFilter = '',
         string $search = ''
-    ): array
-    {
+    ): array {
         $result = ['total' => 0, 'orders' => []];
         $conn = (new Database())->getConnection();
 
@@ -198,11 +201,11 @@ class OrderModel
 
         try {
             $countQuery = "
-            SELECT COUNT(DISTINCT o.id)
-            FROM orders o
-            INNER JOIN users u ON o.user_id = u.user_id
-            {$whereSql}
-        ";
+                SELECT COUNT(DISTINCT o.id)
+                FROM orders o
+                INNER JOIN users u ON o.user_id = u.user_id
+                {$whereSql}
+            ";
             $stmtCount = $conn->prepare($countQuery);
             $stmtCount->execute($params);
             $result['total'] = (int)$stmtCount->fetchColumn();
@@ -210,36 +213,47 @@ class OrderModel
             if ($result['total'] === 0) return $result;
 
             $dataQuery = "
-            SELECT 
-                o.id AS id,
-                o.user_id,
-                o.total_price,
-                o.status,
-                o.created_at,
-                o.updated_at,
-                u.full_name,
-                u.email,
-                GROUP_CONCAT(
-                    JSON_OBJECT(
-                        'id', oi.id,
-                        'order_id', oi.order_id,
-                        'product_id', oi.product_id,
-                        'quantity', oi.quantity,
-                        'price', oi.price,
-                        'discount_code', oi.discount_code,
-                        'product_name', p.product_name,
-                        'thumbnail', p.thumbnail
-                    ) SEPARATOR '||'
-                ) AS items
-            FROM orders o
-            INNER JOIN users u ON o.user_id = u.user_id
-            LEFT JOIN order_items oi ON o.id = oi.order_id
-            LEFT JOIN products p ON oi.product_id = p.id
-            {$whereSql}
-            GROUP BY o.id, o.user_id, o.total_price, o.status, o.created_at, o.updated_at, u.full_name, u.email
-            ORDER BY o.{$sortBy} DESC
-            LIMIT :limit OFFSET :offset
-        ";
+                SELECT 
+                    o.id AS id,
+                    o.user_id,
+                    o.total_price,
+                    o.status,
+                    o.created_at,
+                    o.updated_at,
+                    o.payment_method, 
+                    o.shipping_address,
+                    u.full_name,
+                    u.email,
+                    GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'id', oi.id,
+                            'order_id', oi.order_id,
+                            'product_id', oi.product_id,
+                            'quantity', oi.quantity,
+                            'price', oi.price,
+                            'product_name', p.product_name,
+                            'thumbnail', p.thumbnail
+                        ) SEPARATOR '||'
+                    ) AS items
+                FROM orders o
+                INNER JOIN users u ON o.user_id = u.user_id
+                LEFT JOIN order_items oi ON o.id = oi.order_id
+                LEFT JOIN products p ON oi.product_id = p.id
+                {$whereSql}
+                GROUP BY 
+                    o.id, 
+                    o.user_id, 
+                    o.total_price, 
+                    o.status, 
+                    o.created_at, 
+                    o.updated_at,
+                    o.payment_method,  
+                    o.shipping_address,
+                    u.full_name, 
+                    u.email
+                ORDER BY o.{$sortBy} DESC
+                LIMIT :limit OFFSET :offset
+            ";
 
             $stmtData = $conn->prepare($dataQuery);
             foreach ($params as $key => $value) {
@@ -251,6 +265,7 @@ class OrderModel
 
             $rows = $stmtData->fetchAll(PDO::FETCH_ASSOC);
 
+            // Tách items
             foreach ($rows as &$row) {
                 if (!empty($row['items'])) {
                     $itemStrings = explode('||', $row['items']);
@@ -262,7 +277,6 @@ class OrderModel
 
             $result['orders'] = $rows;
             return $result;
-
         } catch (PDOException $e) {
             error_log("OrderModel::getOrdersPaginated Error: " . $e->getMessage());
             return $result;

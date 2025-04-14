@@ -39,8 +39,7 @@ class ProductController
         $maxPrice = filter_input(INPUT_GET, 'max_price', FILTER_VALIDATE_FLOAT);
         $brand = filter_input(INPUT_GET, 'brand', FILTER_SANITIZE_SPECIAL_CHARS);
 
-        $result = $this->productModel->getProductsPaginated($page, $limit, $sortBy, $search, false, $categoryId, $minPrice, $maxPrice,
-        $brand);
+        $result = $this->productModel->getProductsPaginated($page, $limit, $sortBy, $search, false, $categoryId, $minPrice, $maxPrice, $brand);
 
         $filters = [
             'sort_by' => $sortBy,

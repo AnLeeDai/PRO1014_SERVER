@@ -19,8 +19,19 @@ class OrderController
         $data = json_decode(file_get_contents("php://input"), true);
         $type = $data['type'] ?? '';
 
+        $shippingAddress = trim($data['shipping_address'] ?? '');
+        $paymentMethod = trim($data['payment_method'] ?? 'bank_transfer');
+        $validMethods = ['bank_transfer', 'visa', 'cash'];
+
+        if (!in_array($paymentMethod, $validMethods)) {
+            $paymentMethod = 'bank_transfer';
+        }
+
         if (!in_array($type, ['buy_now', 'from_cart'])) {
-            Utils::respond(["success" => false, "message" => "Loại thanh toán không hợp lệ."], 400);
+            Utils::respond([
+                "success" => false,
+                "message" => "Loại thanh toán không hợp lệ."
+            ], 400);
         }
 
         $orderItems = [];
@@ -29,7 +40,6 @@ class OrderController
         if ($type === 'buy_now') {
             $productId = (int)($data['product_id'] ?? 0);
             $quantity = (int)($data['quantity'] ?? 0);
-            $discountCode = trim($data['discount_code'] ?? '');
 
             if ($productId <= 0 || $quantity <= 0) {
                 Utils::respond(["success" => false, "message" => "Thông tin sản phẩm không hợp lệ."], 400);
@@ -40,27 +50,22 @@ class OrderController
                 Utils::respond(["success" => false, "message" => "Sản phẩm không tồn tại hoặc vượt quá tồn kho."], 400);
             }
 
-            $price = (float)$product['price'];
-            $finalPrice = $price;
-
-            if ($discountCode !== '') {
-                $discount = $this->cartModel->getValidDiscount($productId, $discountCode);
-                if (!$discount) {
-                    Utils::respond(["success" => false, "message" => "Mã giảm giá không hợp lệ."], 400);
-                }
-                $finalPrice = round($price * (1 - $discount['percent_value'] / 100), 2);
-                $this->cartModel->decreaseDiscountQuantity($discount['id']);
-            }
+            $finalPrice = (float)$product['price'];
 
             $orderItems[] = [
                 'product_id' => $productId,
                 'quantity' => $quantity,
-                'price' => $finalPrice,
-                'discount_code' => $discountCode
+                'price' => $finalPrice
             ];
             $total += $finalPrice * $quantity;
-
         } else if ($type === 'from_cart') {
+            if (empty($shippingAddress)) {
+                Utils::respond([
+                    "success" => false,
+                    "message" => "Vui lòng nhập địa chỉ giao hàng."
+                ], 400);
+            }
+
             $items = $this->cartModel->getCartItemsByUser($userId);
             if (empty($items)) {
                 Utils::respond(["success" => false, "message" => "Giỏ hàng rỗng."], 400);
@@ -70,21 +75,19 @@ class OrderController
                 $orderItems[] = [
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
-                    'price' => $item['final_price'],
-                    'discount_code' => $item['discount_code']
+                    'price' => $item['final_price']
                 ];
                 $total += $item['final_price'] * $item['quantity'];
-
-                if (!empty($item['discount_code'])) {
-                    $discount = $this->cartModel->getValidDiscount($item['product_id'], $item['discount_code']);
-                    if ($discount) {
-                        $this->cartModel->decreaseDiscountQuantity($discount['id']);
-                    }
-                }
             }
         }
 
-        $orderId = $this->orderModel->createOrder($userId, $total, $orderItems);
+        $orderId = $this->orderModel->createOrder(
+            $userId,
+            $total,
+            $orderItems,
+            $shippingAddress,
+            $paymentMethod
+        );
 
         if ($type === 'from_cart') {
             $cartId = $this->cartModel->getPendingCartIdByUser($userId);
@@ -143,7 +146,6 @@ class OrderController
         } else {
             Utils::respond(["success" => false, "message" => "Cập nhật thất bại."], 500);
         }
-
     }
 
     public function handleAdminListOrdersPaginated(): void

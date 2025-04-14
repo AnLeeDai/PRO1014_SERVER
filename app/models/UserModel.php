@@ -93,8 +93,7 @@ class UserModel
         string $email,
         string $phoneNumber,
         string $address
-    ): bool
-    {
+    ): bool {
         if ($this->conn === null) return false;
 
         try {
@@ -146,8 +145,7 @@ class UserModel
         string  $sortBy = 'created_at',
         string  $search = '',
         ?string $status = null
-    ): array
-    {
+    ): array {
         $result = ['total' => 0, 'users' => []];
         if ($this->conn === null) return $result;
 

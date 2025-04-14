@@ -1,12 +1,15 @@
 <?php
 
-use JetBrains\PhpStorm\NoReturn;
+
+if (!defined('APP_BASE_URL')) {
+    define('APP_BASE_URL', 'http://localhost');
+}
 
 class Utils
 {
     private const UPLOAD_BASE_PATH = 'C:/laragon/www/uploads';
     private const UPLOAD_DIR_PERMISSIONS = 0775;
-    private const MAX_UPLOAD_SIZE_MB = 2; // Kích thước tối đa (MB)
+    private const MAX_UPLOAD_SIZE_MB = 10; // Kích thước tối đa (MB)
     private const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
     private const DEFAULT_JPG_WEBP_QUALITY = 20; // Chất lượng ảnh (0-100)
     private const DEFAULT_PNG_COMPRESSION = 9; // Mức nén PNG (0-9)
@@ -140,9 +143,12 @@ class Utils
         $uploadDirName = basename(self::UPLOAD_BASE_PATH);
         $relativePath = $uploadDirName . '/' . $fileName;
         return [
-            'success' => true, 'message' => 'Upload và tối ưu ảnh thành công',
-            'file_name' => $fileName, 'path' => $relativePath,
-            'absolute_path' => $finalPath, 'url' => self::buildAbsoluteUrl($relativePath)
+            'success' => true,
+            'message' => 'Upload và tối ưu ảnh thành công',
+            'file_name' => $fileName,
+            'path' => $relativePath,
+            'absolute_path' => $finalPath,
+            'url' => self::buildAbsoluteUrl($relativePath)
         ];
     }
 
@@ -200,7 +206,7 @@ class Utils
 
 
     // --- CÁC HÀM RESPONSE ---
-    #[NoReturn] public static function respond(mixed $data, int $status = 200): void
+    public static function respond(mixed $data, int $status = 200): void
     {
         if (headers_sent($file, $line)) {
             error_log("Utils Error: Headers already sent in $file on line $line.");

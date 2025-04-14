@@ -21,7 +21,7 @@ class CategoryController
             $limit = PHP_INT_MAX;
         }
 
-        $result = $this->categoryModel->getCategoriesPaginated($page, $limit, $sortBy, $search, false);
+        $result = $this->categoryModel->getCategoriesPaginated($page, $limit, $sortBy, $search, true);
 
         $filters = ['sort_by' => $sortBy, 'search' => $search];
 

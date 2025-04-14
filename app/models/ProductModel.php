@@ -222,8 +222,7 @@ class ProductModel
         ?float $minPrice = null,
         ?float $maxPrice = null,
         ?string $brand = null
-    ): array
-    {
+    ): array {
         $result = ['total' => 0, 'products' => []];
         if ($this->conn === null) return $result;
 
