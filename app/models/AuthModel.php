@@ -80,7 +80,6 @@ class Authmodel
             $stmt->execute();
 
             return $stmt->fetchColumn() !== false;
-
         } catch (PDOException $e) {
             error_log("Database error checking for admin account: " . $e->getMessage());
             return false;
@@ -142,7 +141,6 @@ class Authmodel
             $stmt->execute();
 
             return $stmt->fetchColumn() !== false;
-
         } catch (PDOException $e) {
             error_log("DB Error checking for pending password request for '{$username}': " . $e->getMessage());
             return false;
@@ -176,8 +174,7 @@ class Authmodel
         string $sortBy = 'created_at',
         string $search = '',
         string $status = 'pending'
-    ): array
-    {
+    ): array {
         $result = ['total' => 0, 'requests' => []];
         if ($this->conn === null) return $result;
 
@@ -247,7 +244,6 @@ class Authmodel
             $stmt->bindParam(':id', $requestId, PDO::PARAM_INT);
             $stmt->execute();
             return $stmt->fetch(PDO::FETCH_ASSOC);
-
         } catch (PDOException $e) {
             error_log("DB Error getting pending password request by ID {$requestId}: " . $e->getMessage());
             return false;
@@ -284,7 +280,6 @@ class Authmodel
             $stmt->bindParam(':password', $hashedNewPassword, PDO::PARAM_STR);
             $stmt->bindParam(':username', $username, PDO::PARAM_STR);
             return $stmt->execute();
-
         } catch (PDOException $e) {
             error_log("DB Error updating password for user '{$username}': " . $e->getMessage());
             return false;
@@ -307,7 +302,6 @@ class Authmodel
             $stmt->bindParam(':status', $newStatus, PDO::PARAM_STR);
             $stmt->bindParam(':id', $requestId, PDO::PARAM_INT);
             return $stmt->execute();
-
         } catch (PDOException $e) {
             error_log("DB Error updating status for password request ID {$requestId}: " . $e->getMessage());
             return false;

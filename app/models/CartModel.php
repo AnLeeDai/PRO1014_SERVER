@@ -48,14 +48,11 @@ class CartModel
         }
     }
 
-    /**
-     * Lấy 1 dòng cart_item theo cart_id + product_id
-     */
     public function getCartItem(int $cartId, int $productId): array
     {
         try {
             $stmt = $this->conn->prepare("
-                SELECT discount_code, quantity
+                SELECT quantity
                 FROM {$this->cartItemsTable}
                 WHERE cart_id = :cart_id
                   AND product_id = :product_id
@@ -73,14 +70,13 @@ class CartModel
         }
     }
 
-    public function updateCartItemQuantity(int $cartId, int $productId, int $quantity, float $price, ?string $discountCode = null): bool
+    public function updateCartItemQuantity(int $cartId, int $productId, int $quantity, float $price): bool
     {
         try {
             $stmt = $this->conn->prepare("
                 UPDATE {$this->cartItemsTable}
                 SET quantity = :quantity,
                     price = :price,
-                    discount_code = :discount_code,
                     created_at = NOW()
                 WHERE cart_id = :cart_id
                   AND product_id = :product_id
@@ -88,7 +84,6 @@ class CartModel
             return $stmt->execute([
                 ':quantity' => $quantity,
                 ':price' => $price,
-                ':discount_code' => $discountCode,
                 ':cart_id' => $cartId,
                 ':product_id' => $productId
             ]);
@@ -109,29 +104,14 @@ class CartModel
                     ci.product_id,
                     ci.quantity,
                     ci.price AS original_price,
-                    ci.discount_code,
                     p.product_name,
                     p.thumbnail,
                     p.in_stock,
-                    d.percent_value,
-                    (
-                        IF(
-                            d.id IS NOT NULL
-                            AND d.start_date <= NOW()
-                            AND d.end_date >= NOW()
-                            AND d.quantity < d.total_quantity,
-                            ROUND(ci.price * (1 - d.percent_value / 100), 2),
-                            ci.price
-                        )
-                    ) AS final_price,
                     c.id AS cart_id,
                     c.status
                 FROM carts c
                 INNER JOIN cart_items ci ON c.id = ci.cart_id
                 INNER JOIN products p ON ci.product_id = p.id
-                LEFT JOIN discounts d
-                    ON ci.discount_code = d.discount_code
-                    AND ci.product_id = d.product_id
                 WHERE c.user_id = :user_id
                   AND c.status = 'pending'
             ");
@@ -141,97 +121,6 @@ class CartModel
         } catch (PDOException $e) {
             error_log("DB Error getCartItemsByUser: " . $e->getMessage());
             return [];
-        }
-    }
-
-    public function getValidDiscount(int $productId, string $code): array|false
-    {
-        try {
-            $stmt = $this->conn->prepare("
-                SELECT *
-                FROM discounts
-                WHERE product_id = :product_id
-                  AND discount_code = :code
-                  AND quantity > 0
-                  AND start_date <= NOW()
-                  AND end_date >= NOW()
-                LIMIT 1
-            ");
-            $stmt->execute([
-                ':product_id' => $productId,
-                ':code' => $code
-            ]);
-            return $stmt->fetch(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            error_log("DB Error getValidDiscount: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Tìm discount theo code + product_id (để lấy id => increaseDiscountQuantity)
-     */
-    public function getDiscountByCode(string $code, int $productId): array|false
-    {
-        try {
-            $stmt = $this->conn->prepare("
-                SELECT *
-                FROM discounts
-                WHERE discount_code = :code
-                  AND product_id = :product_id
-                LIMIT 1
-            ");
-            $stmt->execute([
-                ':code' => $code,
-                ':product_id' => $productId
-            ]);
-            return $stmt->fetch(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            error_log("DB Error getDiscountByCode: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Giảm số lượng discount
-     */
-    public function decreaseDiscountQuantity(int $discountId, int $usedQty = 1): void
-    {
-        try {
-            $stmt = $this->conn->prepare("
-                UPDATE discounts
-                SET quantity = quantity - :usedQty,
-                    updated_at = NOW()
-                WHERE id = :id
-                  AND quantity >= :usedQty
-            ");
-            $stmt->execute([
-                ':id' => $discountId,
-                ':usedQty' => $usedQty
-            ]);
-        } catch (PDOException $e) {
-            error_log("DB Error decreaseDiscountQuantity: " . $e->getMessage());
-        }
-    }
-
-    /**
-     * Tăng số lượng discount (nếu user bỏ discount hoặc giảm quantity)
-     */
-    public function increaseDiscountQuantity(int $discountId, int $qty = 1): void
-    {
-        try {
-            $stmt = $this->conn->prepare("
-                UPDATE discounts
-                SET quantity = quantity + :qty,
-                    updated_at = NOW()
-                WHERE id = :id
-            ");
-            $stmt->execute([
-                ':id' => $discountId,
-                ':qty' => $qty
-            ]);
-        } catch (PDOException $e) {
-            error_log("DB Error increaseDiscountQuantity: " . $e->getMessage());
         }
     }
 
@@ -310,39 +199,30 @@ class CartModel
         }
     }
 
-    /**
-     * Thêm hoặc cập nhật cart item.
-     * Nếu đã có product_id => quantity += ?; ngược lại => insert mới.
-     */
     public function addOrUpdateCartItem(
-        int     $cartId,
-        int     $productId,
-        int     $quantity,
-        float   $price,
-        ?string $discountCode = null
-    ): bool
-    {
+        int   $cartId,
+        int   $productId,
+        int   $quantity,
+        float $price
+    ): bool {
         try {
             $existingQty = $this->getQuantityInCart($cartId, $productId);
 
             if ($existingQty > 0) {
-                // Đã có => update
                 $stmt = $this->conn->prepare("
                     UPDATE {$this->cartItemsTable}
                     SET quantity = quantity + :quantity,
                         price = :price,
-                        discount_code = :discount_code,
                         created_at = NOW()
                     WHERE cart_id = :cart_id
                       AND product_id = :product_id
                 ");
             } else {
-                // Chưa có => insert
                 $stmt = $this->conn->prepare("
                     INSERT INTO {$this->cartItemsTable}
-                    (cart_id, product_id, quantity, price, discount_code, created_at)
+                    (cart_id, product_id, quantity, price, created_at)
                     VALUES
-                    (:cart_id, :product_id, :quantity, :price, :discount_code, NOW())
+                    (:cart_id, :product_id, :quantity, :price, NOW())
                 ");
             }
 
@@ -350,8 +230,7 @@ class CartModel
                 ':cart_id' => $cartId,
                 ':product_id' => $productId,
                 ':quantity' => $quantity,
-                ':price' => $price,
-                ':discount_code' => $discountCode
+                ':price' => $price
             ]);
         } catch (PDOException $e) {
             error_log("DB Error addOrUpdateCartItem: " . $e->getMessage());

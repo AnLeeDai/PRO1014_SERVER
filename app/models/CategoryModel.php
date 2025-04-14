@@ -74,13 +74,14 @@ class CategoryModel
         string $sortBy = 'category_name',
         string $search = '',
         bool   $includeHidden = false
-    ): array
-    {
+    ): array {
         $result = ['total' => 0, 'categories' => []];
         if ($this->conn === null) return $result;
 
         $allowedSortColumns = ['category_id', 'category_name', 'created_at', 'is_active'];
-        if (!in_array($sortBy, $allowedSortColumns)) { $sortBy = 'category_name'; }
+        if (!in_array($sortBy, $allowedSortColumns)) {
+            $sortBy = 'category_name';
+        }
         $sortDirection = 'ASC';
 
         $offset = ($limit === PHP_INT_MAX) ? 0 : (($page - 1) * $limit);
@@ -106,7 +107,9 @@ class CategoryModel
             $totalItems = (int)$stmtCount->fetchColumn();
             $result['total'] = $totalItems;
 
-            if ($totalItems === 0) { return $result; }
+            if ($totalItems === 0) {
+                return $result;
+            }
 
             $dataQuery = "SELECT category_id, category_name, description, created_at, updated_at, is_active
                           FROM {$this->categories_table} {$whereSql}
@@ -114,7 +117,9 @@ class CategoryModel
                           LIMIT :limit OFFSET :offset";
 
             $stmtData = $this->conn->prepare($dataQuery);
-            foreach ($params as $key => $value) { $stmtData->bindValue($key, $value); }
+            foreach ($params as $key => $value) {
+                $stmtData->bindValue($key, $value);
+            }
             $stmtData->bindValue(':limit', $limit, PDO::PARAM_INT);
             $stmtData->bindValue(':offset', $offset, PDO::PARAM_INT);
 
@@ -123,7 +128,7 @@ class CategoryModel
 
             return $result;
         } catch (PDOException $e) {
-            error_log("DB Error getting paginated categories (search='{$search}', includeHidden=" . ($includeHidden ? 'true':'false') . "): " . $e->getMessage());
+            error_log("DB Error getting paginated categories (search='{$search}', includeHidden=" . ($includeHidden ? 'true' : 'false') . "): " . $e->getMessage());
             return ['total' => 0, 'categories' => []];
         }
     }
@@ -135,12 +140,20 @@ class CategoryModel
         try {
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':name', $name, PDO::PARAM_STR);
-            if ($description === null) { $stmt->bindValue(':description', null, PDO::PARAM_NULL); }
-            else { $stmt->bindParam(':description', $description, PDO::PARAM_STR); }
+            if ($description === null) {
+                $stmt->bindValue(':description', null, PDO::PARAM_NULL);
+            } else {
+                $stmt->bindParam(':description', $description, PDO::PARAM_STR);
+            }
             $success = $stmt->execute();
-            if ($success) { return (int)$this->conn->lastInsertId(); }
-            else { return false; }
-        } catch (PDOException $e) { return false; }
+            if ($success) {
+                return (int)$this->conn->lastInsertId();
+            } else {
+                return false;
+            }
+        } catch (PDOException $e) {
+            return false;
+        }
     }
 
     public function updateCategory(int $id, string $name, ?string $description): bool
@@ -150,12 +163,17 @@ class CategoryModel
         try {
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':name', $name, PDO::PARAM_STR);
-            if ($description === null) { $stmt->bindValue(':description', null, PDO::PARAM_NULL); }
-            else { $stmt->bindParam(':description', $description, PDO::PARAM_STR); }
+            if ($description === null) {
+                $stmt->bindValue(':description', null, PDO::PARAM_NULL);
+            } else {
+                $stmt->bindParam(':description', $description, PDO::PARAM_STR);
+            }
             $stmt->bindParam(':id', $id, PDO::PARAM_INT);
             $success = $stmt->execute();
             return $success && ($stmt->rowCount() > 0);
-        } catch (PDOException $e) { return false; }
+        } catch (PDOException $e) {
+            return false;
+        }
     }
 
     public function hideCategoryById(int $id): bool

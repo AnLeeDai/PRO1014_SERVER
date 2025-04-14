@@ -35,8 +35,7 @@ class BannerModel
         int    $limit = 10,
         string $sortBy = 'created_at',
         string $search = ''
-    ): array
-    {
+    ): array {
         // Kết quả trả về với tổng số banner và danh sách banner
         $result = ['total' => 0, 'banners' => []];
         if ($this->conn === null) return $result;
