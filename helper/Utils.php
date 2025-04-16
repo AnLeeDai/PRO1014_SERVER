@@ -2,8 +2,12 @@
 
 
 if (!defined('APP_BASE_URL')) {
-    define('APP_BASE_URL', 'http://localhost');
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+    define('APP_BASE_URL', $protocol . '://' . $host);
 }
+
 
 class Utils
 {

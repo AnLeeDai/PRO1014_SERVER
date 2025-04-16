@@ -124,9 +124,9 @@ class UserModel
 
         try {
             $query = "SELECT user_id, username, full_name, email, phone_number, address, avatar_url, password_changed_at, created_at, role
-                  FROM {$this->users_table}
-                  WHERE user_id = :id AND role = 'user'
-                  LIMIT 1";
+                      FROM {$this->users_table}
+                      WHERE user_id = :id
+                      LIMIT 1";
 
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $id, PDO::PARAM_INT);
