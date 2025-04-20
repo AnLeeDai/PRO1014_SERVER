@@ -77,6 +77,43 @@ class Utils
         }
     }
 
+    public static function deletePhysicalImage(string $urlOrPath): bool
+    {
+        // 1) Chuẩn hoá về đường dẫn tuyệt đối trên server
+        $absoluteBase = rtrim(self::UPLOAD_BASE_PATH, '/\\') . DIRECTORY_SEPARATOR;
+        $path = $urlOrPath;
+
+        // Nếu là URL tuyệt đối -> cắt bỏ APP_BASE_URL để lấy phần relative
+        if (filter_var($urlOrPath, FILTER_VALIDATE_URL)) {
+            $baseUrl = rtrim(APP_BASE_URL, '/');
+            if (strpos($urlOrPath, $baseUrl) === 0) {
+                $relative = ltrim(substr($urlOrPath, strlen($baseUrl)), '/\\');
+                $path     = $absoluteBase . $relative;
+            } else {
+                // URL nằm ngoài server -> không xoá
+                error_log("Utils Warning: deletePhysicalImage bỏ qua URL ngoài hệ thống: $urlOrPath");
+                return false;
+            }
+        } else {
+            // Nếu đưa vào chuỗi không bắt đầu bằng thư mục uploads -> ghép thêm
+            if (strpos($urlOrPath, $absoluteBase) !== 0) {
+                $path = $absoluteBase . ltrim($urlOrPath, '/\\');
+            }
+        }
+
+        // 2) Xoá file nếu tồn tại
+        if (file_exists($path) && is_file($path)) {
+            if (@unlink($path)) {
+                return true;
+            }
+            error_log("Utils Error: Không thể xoá file: $path");
+            return false;
+        }
+
+        // File đã không tồn tại coi như xoá thành công
+        return true;
+    }
+
     public static function uploadImage(array $file, string $filePrefix, ?string $customName = null): array
     {
         // Step 1: Check basic upload errors

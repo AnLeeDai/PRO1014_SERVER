@@ -9,6 +9,7 @@ class ProductController
         $this->productModel = new ProductModel();
     }
 
+    /* ========== GET ONE PRODUCT ========== */
     public function handleGetProductById(): void
     {
         $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
@@ -28,56 +29,66 @@ class ProductController
         ], 200);
     }
 
+    /* ========== LIST PRODUCTS ========== */
     public function handleListProducts(): void
     {
-        $page = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT, ['options' => ['default' => 1, 'min_range' => 1]]);
-        $limit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT, ['options' => ['default' => 10, 'min_range' => 1, 'max_range' => 100]]);
-        $sortBy = filter_input(INPUT_GET, 'sort_by', FILTER_SANITIZE_SPECIAL_CHARS) ?: 'created_at';
-        $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_SPECIAL_CHARS) ?: '';
+        $page       = filter_input(INPUT_GET, 'page',       FILTER_VALIDATE_INT, ['options' => ['default' => 1, 'min_range' => 1]]);
+        $limit      = filter_input(INPUT_GET, 'limit',      FILTER_VALIDATE_INT, ['options' => ['default' => 10, 'min_range' => 1, 'max_range' => 100]]);
+        $sortBy     = filter_input(INPUT_GET, 'sort_by',    FILTER_SANITIZE_SPECIAL_CHARS) ?: 'created_at';
+        $search     = filter_input(INPUT_GET, 'search',     FILTER_SANITIZE_SPECIAL_CHARS) ?: '';
         $categoryId = filter_input(INPUT_GET, 'category_id', FILTER_VALIDATE_INT);
-        $minPrice = filter_input(INPUT_GET, 'min_price', FILTER_VALIDATE_FLOAT);
-        $maxPrice = filter_input(INPUT_GET, 'max_price', FILTER_VALIDATE_FLOAT);
-        $brand = filter_input(INPUT_GET, 'brand', FILTER_SANITIZE_SPECIAL_CHARS);
+        $minPrice   = filter_input(INPUT_GET, 'min_price',  FILTER_VALIDATE_FLOAT);
+        $maxPrice   = filter_input(INPUT_GET, 'max_price',  FILTER_VALIDATE_FLOAT);
+        $brand      = filter_input(INPUT_GET, 'brand',      FILTER_SANITIZE_SPECIAL_CHARS);
 
-        $result = $this->productModel->getProductsPaginated($page, $limit, $sortBy, $search, false, $categoryId, $minPrice, $maxPrice, $brand);
-
-        $filters = [
-            'sort_by' => $sortBy,
-            'search' => $search,
-            'category_id' => $categoryId,
-            'min_price' => $minPrice,
-            'max_price' => $maxPrice,
-            'brand' => $brand
-        ];
+        $result = $this->productModel->getProductsPaginated(
+            $page,
+            $limit,
+            $sortBy,
+            $search,
+            false,
+            $categoryId,
+            $minPrice,
+            $maxPrice,
+            $brand
+        );
 
         Utils::respond(Utils::buildPaginatedResponse(
             true,
             "Lấy danh sách sản phẩm thành công.",
-            $result['products'] ?? [],
+            $result['products'],
             $page,
             $limit,
-            $result['total'] ?? 0,
-            $filters
+            $result['total'],
+            [
+                'sort_by'     => $sortBy,
+                'search'      => $search,
+                'category_id' => $categoryId,
+                'min_price'   => $minPrice,
+                'max_price'   => $maxPrice,
+                'brand'       => $brand,
+            ]
         ), 200);
     }
 
+    /* ========== CREATE PRODUCT ========== */
     public function handleCreateProduct(): void
     {
         AuthMiddleware::isAdmin();
 
-        $data = $_POST;
+        $data  = $_POST;
         $files = $_FILES;
 
-        $requiredFields = [
-            'product_name' => 'Tên sản phẩm không được để trống',
-            'price' => 'Giá sản phẩm không được để trống',
+        $required = [
+            'product_name'      => 'Tên sản phẩm không được để trống',
+            'price'             => 'Giá sản phẩm không được để trống',
             'short_description' => 'Mô tả ngắn không được để trống',
-            'full_description' => 'Mô tả chi tiết không được để trống',
-            'category_id' => 'Danh mục không được để trống',
-            'in_stock' => 'Số lượng tồn kho không được để trống'
+            'full_description'  => 'Mô tả chi tiết không được để trống',
+            'category_id'       => 'Danh mục không được để trống',
+            'in_stock'          => 'Số lượng tồn kho không được để trống',
         ];
-        $errors = Utils::validateBasicInput($data, $requiredFields);
-        if (!empty($errors)) {
+        $errors = Utils::validateBasicInput($data, $required);
+        if ($errors) {
             Utils::respond(["success" => false, "message" => "Thiếu thông tin.", "errors" => $errors], 400);
         }
 
@@ -90,21 +101,20 @@ class ProductController
             Utils::respond(["success" => false, "message" => "Thiếu ảnh thumbnail."], 400);
         }
 
-        $uploadThumbnail = Utils::uploadImage($files['thumbnail'], 'product_thumb', $productName);
-        if (!$uploadThumbnail['success']) {
-            Utils::respond(['success' => false, 'message' => 'Lỗi upload thumbnail: ' . $uploadThumbnail['message']], 400);
+        $thumb = Utils::uploadImage($files['thumbnail'], 'product_thumb', $productName);
+        if (!$thumb['success']) {
+            Utils::respond(['success' => false, 'message' => 'Lỗi upload thumbnail: ' . $thumb['message']], 400);
         }
-        $data['thumbnail'] = $uploadThumbnail['url'];
-
-        $data['in_stock'] = (int)($data['in_stock'] ?? 0);
+        $data['thumbnail'] = $thumb['url'];
+        $data['in_stock']  = (int)$data['in_stock'];
 
         $productId = $this->productModel->createProduct($data);
 
-        if ($productId !== false && isset($files['gallery'])) {
+        if ($productId && isset($files['gallery'])) {
             $this->productModel->uploadGalleryImages($productId, $files['gallery'], $productName);
         }
 
-        if ($productId !== false) {
+        if ($productId) {
             $product = $this->productModel->getProductById($productId, true);
             Utils::respond(["success" => true, "message" => "Tạo sản phẩm thành công.", "product" => $product], 201);
         } else {
@@ -112,51 +122,67 @@ class ProductController
         }
     }
 
+    /* ========== UPDATE PRODUCT ========== */
     public function handleUpdateProduct(): void
     {
         AuthMiddleware::isAdmin();
 
-        $data = $_POST;
+        $data  = $_POST;
         $files = $_FILES;
 
         if (!isset($data['product_id']) || !filter_var($data['product_id'], FILTER_VALIDATE_INT)) {
             Utils::respond(["success" => false, "message" => "ID sản phẩm không hợp lệ."], 400);
         }
 
-        $requiredFields = [
-            'product_id' => 'ID sản phẩm không được để trống',
-            'product_name' => 'Tên sản phẩm không được để trống',
-            'price' => 'Giá không được để trống',
-            'category_id' => 'Danh mục không được để trống',
-            'in_stock' => 'Số lượng tồn kho không được để trống',
+        $required = [
+            'product_id'        => 'ID sản phẩm không được để trống',
+            'product_name'      => 'Tên sản phẩm không được để trống',
+            'price'             => 'Giá không được để trống',
+            'category_id'       => 'Danh mục không được để trống',
+            'in_stock'          => 'Số lượng tồn kho không được để trống',
+            'short_description' => 'Mô tả ngắn không được để trống',
+            'full_description'  => 'Mô tả chi tiết không được để trống',
+            'extra_info'        => 'Thông tin thêm không được để trống',
         ];
-
-        $errors = Utils::validateBasicInput($data, $requiredFields);
-        if (!empty($errors)) {
+        $errors = Utils::validateBasicInput($data, $required);
+        if ($errors) {
             Utils::respond(["success" => false, "message" => "Thiếu thông tin.", "errors" => $errors], 400);
         }
 
         $productId = (int)$data['product_id'];
-        $existing = $this->productModel->getProductById($productId, true);
+        $existing  = $this->productModel->getProductById($productId, true);
         if (!$existing) {
             Utils::respond(["success" => false, "message" => "Không tìm thấy sản phẩm."], 404);
         }
 
-        if ($data['product_name'] !== $existing['product_name']) {
-            if ($this->productModel->findProductByName($data['product_name'])) {
-                Utils::respond(["success" => false, "message" => "Tên sản phẩm đã tồn tại."], 409);
-            }
+        if (
+            $data['product_name'] !== $existing['product_name'] &&
+            $this->productModel->findProductByName($data['product_name'])
+        ) {
+            Utils::respond(["success" => false, "message" => "Tên sản phẩm đã tồn tại."], 409);
         }
 
-        if (isset($files['thumbnail'])) {
-            $uploadThumb = Utils::uploadImage($files['thumbnail'], 'product_thumb', $data['product_name']);
-            if (!$uploadThumb['success']) {
-                Utils::respond(["success" => false, "message" => "Lỗi upload thumbnail: " . $uploadThumb['message']], 400);
+        /* Thumbnail (optional) */
+        if (isset($files['thumbnail']) && $files['thumbnail']['error'] === UPLOAD_ERR_OK) {
+            $thumb = Utils::uploadImage($files['thumbnail'], 'product_thumb', $data['product_name']);
+            if (!$thumb['success']) {
+                Utils::respond(["success" => false, "message" => "Lỗi upload thumbnail: " . $thumb['message']], 400);
             }
-            $data['thumbnail'] = $uploadThumb['url'];
+            $data['thumbnail'] = $thumb['url'];
+        }
+
+        /* Gallery (optional) */
+        if (isset($files['gallery'])) {
+            $mode = $data['gallery_mode'] ?? 'replace'; // append | replace
+            if ($mode === 'replace') {
+                $this->productModel->replaceGalleryImages($productId, $files['gallery'], $data['product_name']);
+            } else {
+                $this->productModel->uploadGalleryImages($productId, $files['gallery'], $data['product_name']);
+            }
         }
 
         $updated = $this->productModel->updateProduct($productId, $data);
+
         if ($updated) {
             $product = $this->productModel->getProductById($productId, true);
             Utils::respond(["success" => true, "message" => "Cập nhật sản phẩm thành công.", "product" => $product], 200);
@@ -165,6 +191,7 @@ class ProductController
         }
     }
 
+    /* ========== HIDE / UNHIDE PRODUCT ========== */
     public function handleHideProduct(): void
     {
         AuthMiddleware::isAdmin();
@@ -179,12 +206,13 @@ class ProductController
             Utils::respond(["success" => false, "message" => "Sản phẩm không hoạt động hoặc không tồn tại."], 404);
         }
 
-        $hideSuccess = $this->productModel->hideProductById($productId);
-        if ($hideSuccess) {
-            Utils::respond(["success" => true, "message" => "Đã ẩn sản phẩm thành công."], 200);
-        } else {
-            Utils::respond(["success" => false, "message" => "Lỗi khi ẩn sản phẩm hoặc đã bị ẩn trước đó."], 500);
-        }
+        $ok = $this->productModel->hideProductById($productId);
+        Utils::respond(
+            $ok
+                ? ["success" => true, "message" => "Đã ẩn sản phẩm thành công."]
+                : ["success" => false, "message" => "Lỗi khi ẩn sản phẩm hoặc đã bị ẩn trước đó."],
+            $ok ? 200 : 500
+        );
     }
 
     public function handleUnhideProduct(): void
@@ -205,12 +233,12 @@ class ProductController
             Utils::respond(["success" => false, "message" => "Sản phẩm này đã đang hoạt động."], 400);
         }
 
-        $unhideSuccess = $this->productModel->unhideProductById($productId);
-        if ($unhideSuccess) {
-            $product = $this->productModel->getProductById($productId, true);
-            Utils::respond(["success" => true, "message" => "Đã mở khóa sản phẩm thành công.", "product" => $product], 200);
-        } else {
-            Utils::respond(["success" => false, "message" => "Không thể mở khóa sản phẩm."], 500);
-        }
+        $ok = $this->productModel->unhideProductById($productId);
+        Utils::respond(
+            $ok
+                ? ["success" => true, "message" => "Đã mở khóa sản phẩm thành công.", "product" => $this->productModel->getProductById($productId, true)]
+                : ["success" => false, "message" => "Không thể mở khóa sản phẩm."],
+            $ok ? 200 : 500
+        );
     }
 }

@@ -5,7 +5,6 @@ $allowed_origins = [
     "http://localhost:5173",
     "http://localhost:3000",
     "https://pro-1014-client.vercel.app",
-    "https://remaining-thousand-steering-stamp.trycloudflare.com"
 ];
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? "";
@@ -25,7 +24,6 @@ header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 header("Access-Control-Max-Age: 86400");
 
-// Xử lý dứt điểm preflight request
 if ($_SERVER['REQUEST_METHOD'] == "OPTIONS") {
     http_response_code(204);
     exit();
