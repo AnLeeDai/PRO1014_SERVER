@@ -166,11 +166,11 @@ class CartModel
     {
         try {
             $stmt = $this->conn->prepare("
-                SELECT price, in_stock
-                FROM {$this->productsTable}
-                WHERE id = :product_id
-                  AND is_active = 1
-            ");
+            SELECT id, product_name, price, in_stock
+            FROM {$this->productsTable}
+            WHERE id = :product_id
+              AND is_active = 1
+        ");
             $stmt->bindParam(':product_id', $productId, PDO::PARAM_INT);
             $stmt->execute();
             return $stmt->fetch(PDO::FETCH_ASSOC);

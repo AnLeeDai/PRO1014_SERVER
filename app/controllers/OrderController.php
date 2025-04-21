@@ -46,8 +46,8 @@ class OrderController
             }
 
             $product = $this->cartModel->getProductStockAndPrice($productId);
-            if (!$product || $quantity > (int)$product['in_stock']) {
-                Utils::respond(["success" => false, "message" => "Sản phẩm không tồn tại hoặc vượt quá tồn kho."], 400);
+            if (!$product) {
+                Utils::respond(["success" => false, "message" => "Sản phẩm không tồn tại."], 400);
             }
 
             $finalPrice = (float)$product['price'];
@@ -78,14 +78,22 @@ class OrderController
                     'price' => $item['original_price']
                 ];
                 $total += $item['original_price'] * $item['quantity'];
-                echo $total;
             }
         }
 
+        // check product in stock
         foreach ($orderItems as $item) {
             $product = $this->cartModel->getProductStockAndPrice($item['product_id']);
 
-            if (!$product || $item['quantity'] > (int)$product['in_stock']) {
+            if (!$product) {
+                Utils::respond([
+                    "success" => false,
+                    "message" => "Sản phẩm không tồn tại."
+                ], 400);
+            }
+
+
+            if ($item['quantity'] > (int)$product['in_stock']) {
                 Utils::respond([
                     "success" => false,
                     "message" => "Sản phẩm '{$product['product_name']}' không còn đủ số lượng trong kho."
@@ -107,7 +115,6 @@ class OrderController
                 "message" => "Đặt hàng thất bại."
             ], 500);
         }
-        exit();
 
         if ($type === 'from_cart') {
             $cartId = $this->cartModel->getPendingCartIdByUser($userId);
