@@ -27,6 +27,7 @@ spl_autoload_register(function (string $className) {
     error_log("Autoload Error: {$className} not found");
 });
 
+// auto add new admin account if not exists
 try {
     $initAuthModel = new authmodel();
 
@@ -51,6 +52,60 @@ try {
             throw new Exception('Create default admin failed');
         }
         error_log("[Auto Init] Default admin created (ID {$adminId})");
+    }
+} catch (Throwable $e) {
+    error_log('[Auto Init] ' . $e->getMessage());
+    Utils::respond(['error' => 'System initialization failed'], 500);
+}
+
+// auto add new default category if not exists
+try {
+    // Initialize default admin account
+    $initAuthModel = new authmodel();
+
+    if (!$initAuthModel->hasAdminAccount()) {
+        $pwdHash = password_hash('Admin123!', PASSWORD_DEFAULT, ['cost' => 12]);
+        if ($pwdHash === false) {
+            throw new Exception('Hash password failed');
+        }
+
+        $adminId = $initAuthModel->createUser([
+            'username'      => 'admin',
+            'password'      => $pwdHash,
+            'full_name'     => 'admin',
+            'email'         => 'admin@localhost.local',
+            'role'          => 'admin',
+            'phone_number'  => '0334920373',
+            'address'       => 'Nhân cầu 3, Thị Trấn Hưng Hà, Thái Bình',
+            'avatar_url'    => 'https://picsum.photos/id/' . rand(1, 1000) . '/300',
+        ]);
+
+        if ($adminId === false) {
+            throw new Exception('Create default admin failed');
+        }
+        error_log("[Auto Init] Default admin created (ID {$adminId})");
+    }
+
+    // Initialize default categories
+    $categoryModel = new CategoryModel();
+    $defaultCategories = [
+        'Điện thoại' => 'Các loại điện thoại thông minh',
+        'Máy tính bảng' => 'Các loại máy tính bảng',
+        'Laptop' => 'Các loại laptop và máy tính xách tay',
+        'Phụ kiện' => 'Phụ kiện cho điện thoại, máy tính bảng, laptop',
+    ];
+
+    foreach ($defaultCategories as $name => $description) {
+        if (!$categoryModel->findCategoryByName($name)) {
+            $categoryId = $categoryModel->createCategory($name, $description);
+            if ($categoryId === false) {
+                error_log("[Auto Init] Failed to create default category '{$name}'");
+            } else {
+                error_log("[Auto Init] Default category '{$name}' created (ID {$categoryId})");
+            }
+        } else {
+            error_log("[Auto Init] Default category '{$name}' already exists");
+        }
     }
 } catch (Throwable $e) {
     error_log('[Auto Init] ' . $e->getMessage());
