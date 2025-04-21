@@ -46,8 +46,8 @@ class OrderController
             }
 
             $product = $this->cartModel->getProductStockAndPrice($productId);
-            if (!$product || $quantity > (int)$product['in_stock']) {
-                Utils::respond(["success" => false, "message" => "Sản phẩm không tồn tại hoặc vượt quá tồn kho."], 400);
+            if (!$product) {
+                Utils::respond(["success" => false, "message" => "Sản phẩm không tồn tại."], 400);
             }
 
             $finalPrice = (float)$product['price'];
@@ -75,15 +75,25 @@ class OrderController
                 $orderItems[] = [
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
-                    'price' => $item['final_price']
+                    'price' => $item['original_price']
                 ];
-                $total += $item['final_price'] * $item['quantity'];
+                $total += $item['original_price'] * $item['quantity'];
             }
         }
 
+        // check product in stock
         foreach ($orderItems as $item) {
             $product = $this->cartModel->getProductStockAndPrice($item['product_id']);
-            if (!$product || $item['quantity'] > (int)$product['in_stock']) {
+
+            if (!$product) {
+                Utils::respond([
+                    "success" => false,
+                    "message" => "Sản phẩm không tồn tại."
+                ], 400);
+            }
+
+
+            if ($item['quantity'] > (int)$product['in_stock']) {
                 Utils::respond([
                     "success" => false,
                     "message" => "Sản phẩm '{$product['product_name']}' không còn đủ số lượng trong kho."
@@ -98,6 +108,13 @@ class OrderController
             $shippingAddress,
             $paymentMethod
         );
+
+        if (!$orderId) {
+            Utils::respond([
+                "success" => false,
+                "message" => "Đặt hàng thất bại."
+            ], 500);
+        }
 
         if ($type === 'from_cart') {
             $cartId = $this->cartModel->getPendingCartIdByUser($userId);

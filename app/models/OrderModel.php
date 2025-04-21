@@ -10,7 +10,6 @@ class OrderModel
             $stmt->execute([':order_id' => $orderId]);
             return $stmt->fetchColumn() > 0;
         } catch (PDOException $e) {
-            error_log("DB Error orderExists: " . $e->getMessage());
             return false;
         }
     }
@@ -26,15 +25,19 @@ class OrderModel
         try {
             $conn->beginTransaction();
 
-            // Kiểm tra tồn kho trước khi lưu đơn
             foreach ($items as $item) {
                 $stmtCheck = $conn->prepare("SELECT product_name, in_stock FROM products WHERE id = :product_id LIMIT 1");
                 $stmtCheck->execute([':product_id' => $item['product_id']]);
                 $product = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
-                if (!$product || $item['quantity'] > (int)$product['in_stock']) {
+                if (!$product) {
                     $conn->rollBack();
-                    throw new Exception("Sản phẩm '{$product['product_name']}' không đủ số lượng trong kho.");
+                    return false;
+                }
+
+                if ($item['quantity'] > (int)$product['in_stock']) {
+                    $conn->rollBack();
+                    return false;
                 }
             }
 
@@ -73,11 +76,11 @@ class OrderModel
             return $orderId;
         } catch (Exception $e) {
             $conn->rollBack();
-            error_log("Order Error: " . $e->getMessage());
+            error_log("❌ Exception Order: " . $e->getMessage());
             return false;
         } catch (PDOException $e) {
             $conn->rollBack();
-            error_log("DB Error createOrder: " . $e->getMessage());
+            error_log("❌ DB Error createOrder: " . $e->getMessage());
             return false;
         }
     }
