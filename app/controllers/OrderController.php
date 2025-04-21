@@ -75,14 +75,16 @@ class OrderController
                 $orderItems[] = [
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
-                    'price' => $item['final_price']
+                    'price' => $item['original_price']
                 ];
-                $total += $item['final_price'] * $item['quantity'];
+                $total += $item['original_price'] * $item['quantity'];
+                echo $total;
             }
         }
 
         foreach ($orderItems as $item) {
             $product = $this->cartModel->getProductStockAndPrice($item['product_id']);
+
             if (!$product || $item['quantity'] > (int)$product['in_stock']) {
                 Utils::respond([
                     "success" => false,
@@ -98,6 +100,14 @@ class OrderController
             $shippingAddress,
             $paymentMethod
         );
+
+        if (!$orderId) {
+            Utils::respond([
+                "success" => false,
+                "message" => "Đặt hàng thất bại."
+            ], 500);
+        }
+        exit();
 
         if ($type === 'from_cart') {
             $cartId = $this->cartModel->getPendingCartIdByUser($userId);
