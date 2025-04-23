@@ -18,14 +18,24 @@ class Authmodel
 
     public function getUserAuthVerificationData(int $userId): array|false
     {
-        if ($this->conn === null) return false;
+        if ($this->conn === null) {
+            return false;
+        }
 
         try {
-            $query = "SELECT password, password_changed_at FROM {$this->users_table} WHERE user_id = :user_id LIMIT 1";
+            $query = "
+                SELECT 
+                    is_active, 
+                    password_changed_at 
+                FROM {$this->users_table} 
+                WHERE user_id = :user_id 
+                LIMIT 1
+            ";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
             $stmt->execute();
-            return $stmt->fetch(PDO::FETCH_ASSOC);
+
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: false;
         } catch (PDOException $e) {
             error_log("DB Error getting auth verification data for user ID {$userId}: " . $e->getMessage());
             return false;

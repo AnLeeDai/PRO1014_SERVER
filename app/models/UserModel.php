@@ -20,7 +20,8 @@ class UserModel
 
         try {
             $query = "UPDATE {$this->users_table}
-                  SET is_active = 1
+                  SET is_active = 1,
+                      password_changed_at = NULL
                   WHERE user_id = :id AND role = 'user' AND is_active = 0";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $userId, PDO::PARAM_INT);
@@ -39,8 +40,11 @@ class UserModel
 
         try {
             $query = "UPDATE {$this->users_table}
-                  SET is_active = 0
-                  WHERE user_id = :id AND role = 'user' AND is_active = 1";
+                  SET is_active = 0,
+                      password_changed_at = NOW()     
+                  WHERE user_id = :id
+                    AND role = 'user'
+                    AND is_active = 1";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':id', $userId, PDO::PARAM_INT);
             $stmt->execute();
@@ -51,6 +55,7 @@ class UserModel
             return false;
         }
     }
+
 
     public function updateUserAvatar(int $userId, string $avatarUrl): bool
     {
