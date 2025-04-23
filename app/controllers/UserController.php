@@ -250,7 +250,7 @@ class UserController
         $limit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT, ['options' => ['default' => 10, 'min_range' => 1, 'max_range' => 100]]);
         $sortBy = filter_input(INPUT_GET, 'sort_by', FILTER_SANITIZE_SPECIAL_CHARS) ?: 'created_at';
         $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_SPECIAL_CHARS) ?: '';
-        $status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_SPECIAL_CHARS); // 👈 Thêm lọc trạng thái
+        $status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_SPECIAL_CHARS);
 
         $result = $this->userModel->getUsersPaginated($page, $limit, $sortBy, $search, $status);
 

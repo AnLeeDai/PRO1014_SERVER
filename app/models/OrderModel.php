@@ -195,101 +195,104 @@ class OrderModel
         string $search = ''
     ): array {
         $result = ['total' => 0, 'orders' => []];
-        $conn = (new Database())->getConnection();
+        $conn   = (new Database())->getConnection();
 
         $allowedSort = ['created_at', 'updated_at', 'status', 'total_price'];
         if (!in_array($sortBy, $allowedSort)) $sortBy = 'created_at';
 
         $offset = ($page - 1) * $limit;
         $params = [];
-        $where = [];
+        $where  = [];
 
-        if (!empty($statusFilter)) {
-            $where[] = "o.status = :status";
+        if ($statusFilter !== '') {
+            $where[]           = "o.status = :status";
             $params[':status'] = $statusFilter;
         }
 
-        if (!empty($search)) {
-            $where[] = "(u.full_name LIKE :search OR u.email LIKE :search)";
-            $params[':search'] = '%' . $search . '%';
+        /* --- Lọc theo search --- */
+        if ($search !== '') {
+            if (ctype_digit($search)) {
+                $where[]        = "(o.id = :id
+                                 OR u.user_id = :id
+                                 OR oi.product_id = :id)";
+                $params[':id']  = (int)$search;
+            } else {
+                $where[]        = "(u.username   LIKE :kw
+                                 OR u.full_name  LIKE :kw
+                                 OR u.email      LIKE :kw)";
+                $params[':kw']  = '%' . $search . '%';
+            }
         }
 
-        $whereSql = count($where) > 0 ? "WHERE " . implode(" AND ", $where) : "";
+        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
         try {
-            $countQuery = "
+            /* ------------ tổng bản ghi ------------ */
+            $countSql = "
                 SELECT COUNT(DISTINCT o.id)
                 FROM orders o
-                INNER JOIN users u ON o.user_id = u.user_id
-                {$whereSql}
+                INNER JOIN users u       ON o.user_id = u.user_id
+                LEFT JOIN order_items oi ON o.id      = oi.order_id
+                $whereSql
             ";
-            $stmtCount = $conn->prepare($countQuery);
+            $stmtCount = $conn->prepare($countSql);
             $stmtCount->execute($params);
             $result['total'] = (int)$stmtCount->fetchColumn();
-
             if ($result['total'] === 0) return $result;
 
-            $dataQuery = "
+            /* ------------ truy vấn dữ liệu ------------ */
+            $dataSql = "
                 SELECT 
-                    o.id AS id,
+                    o.id,
                     o.user_id,
                     o.total_price,
                     o.status,
                     o.created_at,
                     o.updated_at,
-                    o.payment_method, 
+                    o.payment_method,
                     o.shipping_address,
+                    u.username,
                     u.full_name,
                     u.email,
                     GROUP_CONCAT(
                         JSON_OBJECT(
-                            'id', oi.id,
-                            'order_id', oi.order_id,
-                            'product_id', oi.product_id,
-                            'quantity', oi.quantity,
-                            'price', oi.price,
+                            'id',           oi.id,
+                            'order_id',     oi.order_id,
+                            'product_id',   oi.product_id,
+                            'quantity',     oi.quantity,
+                            'price',        oi.price,
                             'product_name', p.product_name,
-                            'thumbnail', p.thumbnail
+                            'thumbnail',    p.thumbnail
                         ) SEPARATOR '||'
                     ) AS items
                 FROM orders o
-                INNER JOIN users u ON o.user_id = u.user_id
-                LEFT JOIN order_items oi ON o.id = oi.order_id
-                LEFT JOIN products p ON oi.product_id = p.id
-                {$whereSql}
-                GROUP BY 
-                    o.id, 
-                    o.user_id, 
-                    o.total_price, 
-                    o.status, 
-                    o.created_at, 
-                    o.updated_at,
-                    o.payment_method,  
-                    o.shipping_address,
-                    u.full_name, 
-                    u.email
-                ORDER BY o.{$sortBy} DESC
-                LIMIT :limit OFFSET :offset
+                INNER JOIN users u       ON o.user_id  = u.user_id
+                LEFT JOIN order_items oi ON o.id       = oi.order_id
+                LEFT JOIN products p     ON oi.product_id = p.id
+                $whereSql
+                GROUP BY o.id
+                ORDER BY o.$sortBy DESC
+                LIMIT  :limit OFFSET :offset
             ";
 
-            $stmtData = $conn->prepare($dataQuery);
-            foreach ($params as $key => $value) {
-                $stmtData->bindValue($key, $value);
+            $stmtData = $conn->prepare($dataSql);
+
+            /* bind động */
+            foreach ($params as $k => $v) {
+                $type = is_int($v) ? PDO::PARAM_INT : PDO::PARAM_STR;
+                $stmtData->bindValue($k, $v, $type);
             }
-            $stmtData->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmtData->bindValue(':limit',  $limit,  PDO::PARAM_INT);
             $stmtData->bindValue(':offset', $offset, PDO::PARAM_INT);
             $stmtData->execute();
 
             $rows = $stmtData->fetchAll(PDO::FETCH_ASSOC);
 
-            // Tách items
+            /* tách items JSON */
             foreach ($rows as &$row) {
-                if (!empty($row['items'])) {
-                    $itemStrings = explode('||', $row['items']);
-                    $row['items'] = array_map(fn($item) => json_decode($item, true), $itemStrings);
-                } else {
-                    $row['items'] = [];
-                }
+                $row['items'] = $row['items']
+                    ? array_map(fn($js) => json_decode($js, true), explode('||', $row['items']))
+                    : [];
             }
 
             $result['orders'] = $rows;
