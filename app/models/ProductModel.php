@@ -10,6 +10,26 @@ class ProductModel
         $this->conn = (new Database())->getConnection();
     }
 
+    /* ---------- GALLERY: ADD TỪ URL ---------- */
+    public function addGalleryUrls(int $productId, array $urls): void
+    {
+        if ($this->conn === null) return;
+        foreach ($urls as $url) {
+            $url = trim($url);
+            if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) continue;
+
+            try {
+                $stmt = $this->conn->prepare("
+                INSERT INTO product_images (product_id, image_url, created_at)
+                VALUES (:pid, :url, NOW())
+            ");
+                $stmt->execute([':pid' => $productId, ':url' => $url]);
+            } catch (PDOException $e) {
+                error_log("DB error addGalleryUrls: " . $e->getMessage());
+            }
+        }
+    }
+
     /* ---------- GALLERY: ADD ---------- */
     public function uploadGalleryImages(int $productId, array $galleryFiles, string $productName = ''): void
     {
@@ -17,7 +37,7 @@ class ProductModel
 
         foreach ($galleryFiles['tmp_name'] as $idx => $tmp) {
             if ($galleryFiles['error'][$idx] !== UPLOAD_ERR_OK) {
-                error_log("File upload error index $idx: code ".$galleryFiles['error'][$idx]);
+                error_log("File upload error index $idx: code " . $galleryFiles['error'][$idx]);
                 continue;
             }
 
@@ -29,9 +49,9 @@ class ProductModel
                 'size'     => $galleryFiles['size'][$idx],
             ];
 
-            $up = Utils::uploadImage($single, 'product_gallery', $productName."_".$idx);
+            $up = Utils::uploadImage($single, 'product_gallery', $productName . "_" . $idx);
             if (!$up['success']) {
-                error_log("Upload gallery error: ".$up['message']);
+                error_log("Upload gallery error: " . $up['message']);
                 continue;
             }
 
@@ -45,7 +65,7 @@ class ProductModel
                     ':url' => $up['url'],
                 ]);
             } catch (PDOException $e) {
-                error_log("DB error uploadGalleryImages: ".$e->getMessage());
+                error_log("DB error uploadGalleryImages: " . $e->getMessage());
             }
         }
     }
@@ -64,7 +84,7 @@ class ProductModel
                 Utils::deletePhysicalImage($url); // tự cài hàm xoá file
             }
             $this->conn->prepare("DELETE FROM product_images WHERE product_id = :pid")
-                       ->execute([':pid' => $productId]);
+                ->execute([':pid' => $productId]);
 
             /* Thêm mới */
             $this->uploadGalleryImages($productId, $galleryFiles, $productName);
@@ -72,7 +92,7 @@ class ProductModel
             $this->conn->commit();
         } catch (PDOException $e) {
             $this->conn->rollBack();
-            error_log("DB error replaceGalleryImages: ".$e->getMessage());
+            error_log("DB error replaceGalleryImages: " . $e->getMessage());
         }
     }
 
@@ -86,7 +106,7 @@ class ProductModel
             $stmt->execute([':pid' => $productId]);
             return $stmt->fetchAll(PDO::FETCH_COLUMN);
         } catch (PDOException $e) {
-            error_log("DB error getGalleryByProductId: ".$e->getMessage());
+            error_log("DB error getGalleryByProductId: " . $e->getMessage());
             return [];
         }
     }
@@ -115,7 +135,7 @@ class ProductModel
             }
             return $product;
         } catch (PDOException $e) {
-            error_log("DB error getProductById: ".$e->getMessage());
+            error_log("DB error getProductById: " . $e->getMessage());
             return false;
         }
     }
@@ -172,7 +192,7 @@ class ProductModel
             ]);
             return (int)$this->conn->lastInsertId();
         } catch (PDOException $e) {
-            error_log("DB error createProduct: ".$e->getMessage());
+            error_log("DB error createProduct: " . $e->getMessage());
             return false;
         }
     }
@@ -197,7 +217,7 @@ class ProductModel
             if (!empty($data['thumbnail'])) {
                 $set[] = "thumbnail = :thumbnail";
             }
-            $sql = "UPDATE {$this->products_table} SET ".implode(", ", $set)." WHERE id = :id";
+            $sql = "UPDATE {$this->products_table} SET " . implode(", ", $set) . " WHERE id = :id";
 
             $stmt = $this->conn->prepare($sql);
             $stmt->bindValue(':product_name',      $data['product_name']);
@@ -214,7 +234,7 @@ class ProductModel
             }
             return $stmt->execute();
         } catch (PDOException $e) {
-            error_log("DB error updateProduct: ".$e->getMessage());
+            error_log("DB error updateProduct: " . $e->getMessage());
             return false;
         }
     }
@@ -289,7 +309,7 @@ class ProductModel
             $params[':brand'] = $brand;
         }
 
-        $whereSql = $where ? 'WHERE '.implode(' AND ', $where) : '';
+        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
         try {
             /* Tổng bản ghi */
@@ -328,7 +348,7 @@ class ProductModel
             $result['products'] = $products;
             return $result;
         } catch (PDOException $e) {
-            error_log("DB error getProductsPaginated: ".$e->getMessage());
+            error_log("DB error getProductsPaginated: " . $e->getMessage());
             return $result;
         }
     }

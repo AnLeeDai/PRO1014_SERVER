@@ -9,7 +9,7 @@ class ProductController
         $this->productModel = new ProductModel();
     }
 
-    /* ========== GET ONE PRODUCT ========== */
+    /* ========== GET PRODUCT BY ID ========== */
     public function handleGetProductById(): void
     {
         $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
@@ -46,7 +46,7 @@ class ProductController
             $limit,
             $sortBy,
             $search,
-            false,
+            true,
             $categoryId,
             $minPrice,
             $maxPrice,
@@ -127,10 +127,14 @@ class ProductController
     {
         AuthMiddleware::isAdmin();
 
-        $data  = $_POST;
-        $files = $_FILES;
+        $data  = $_POST;   // text fields
+        $files = $_FILES;  // file fields
 
-        if (!isset($data['product_id']) || !filter_var($data['product_id'], FILTER_VALIDATE_INT)) {
+        /* ---------- validate cơ bản ---------- */
+        if (
+            empty($data['product_id']) ||
+            !filter_var($data['product_id'], FILTER_VALIDATE_INT)
+        ) {
             Utils::respond(["success" => false, "message" => "ID sản phẩm không hợp lệ."], 400);
         }
 
@@ -144,17 +148,17 @@ class ProductController
             'full_description'  => 'Mô tả chi tiết không được để trống',
             'extra_info'        => 'Thông tin thêm không được để trống',
         ];
-        $errors = Utils::validateBasicInput($data, $required);
-        if ($errors) {
-            Utils::respond(["success" => false, "message" => "Thiếu thông tin.", "errors" => $errors], 400);
+        if ($errs = Utils::validateBasicInput($data, $required)) {
+            Utils::respond(["success" => false, "errors" => $errs], 400);
         }
 
-        $productId = (int)$data['product_id'];
+        $productId = (int) $data['product_id'];
         $existing  = $this->productModel->getProductById($productId, true);
         if (!$existing) {
             Utils::respond(["success" => false, "message" => "Không tìm thấy sản phẩm."], 404);
         }
 
+        /* ---------- kiểm tra tên trùng ---------- */
         if (
             $data['product_name'] !== $existing['product_name'] &&
             $this->productModel->findProductByName($data['product_name'])
@@ -162,33 +166,74 @@ class ProductController
             Utils::respond(["success" => false, "message" => "Tên sản phẩm đã tồn tại."], 409);
         }
 
-        /* Thumbnail (optional) */
-        if (isset($files['thumbnail']) && $files['thumbnail']['error'] === UPLOAD_ERR_OK) {
-            $thumb = Utils::uploadImage($files['thumbnail'], 'product_thumb', $data['product_name']);
-            if (!$thumb['success']) {
-                Utils::respond(["success" => false, "message" => "Lỗi upload thumbnail: " . $thumb['message']], 400);
+        /*************** THUMBNAIL (file OR url) ***************/
+        if (!empty($files['thumbnail']['name'])) {
+            $up = Utils::uploadImage($files['thumbnail'], 'product_thumb', $data['product_name']);
+            if (!$up['success']) {
+                Utils::respond(["success" => false, "message" => "Lỗi upload thumbnail: " . $up['message']], 400);
             }
-            $data['thumbnail'] = $thumb['url'];
+            $data['thumbnail'] = $up['url'];
+        } elseif (
+            !empty($data['thumbnail_url']) &&
+            filter_var($data['thumbnail_url'], FILTER_VALIDATE_URL)
+        ) {
+            $data['thumbnail'] = trim($data['thumbnail_url']);
         }
 
-        /* Gallery (optional) */
-        if (isset($files['gallery'])) {
-            $mode = $data['gallery_mode'] ?? 'replace'; // append | replace
-            if ($mode === 'replace') {
-                $this->productModel->replaceGalleryImages($productId, $files['gallery'], $data['product_name']);
-            } else {
+        /*************** GALLERY (file và/hoặc url) ***************/
+        $mode = $data['gallery_mode'] ?? 'replace';  // append | replace
+
+        $hasGalleryFile = !empty($files['gallery']['name'][0]);
+        $hasGalleryUrl  = !empty($data['gallery_urls']);
+
+        /* URL có thể gửi 1 hoặc nhiều -> ép thành mảng */
+        $galleryUrls = [];
+        if ($hasGalleryUrl) {
+            $galleryUrls = is_array($data['gallery_urls'])
+                ? $data['gallery_urls']
+                : [$data['gallery_urls']];
+        }
+
+        /* --- xử lý replace (xoá hết cũ rồi add mới) --- */
+        if ($mode === 'replace' && ($hasGalleryFile || $hasGalleryUrl)) {
+            // xoá toàn bộ gallery cũ
+            $this->productModel->replaceGalleryImages(
+                $productId,
+                $hasGalleryFile ? $files['gallery'] : ['name' => [], 'type' => [], 'tmp_name' => [], 'error' => [], 'size' => []],
+                $data['product_name']
+            );
+            // thêm url mới (nếu có)
+            if ($hasGalleryUrl) {
+                $this->productModel->addGalleryUrls($productId, $galleryUrls);
+            }
+        }
+
+        /* --- append (giữ ảnh cũ, thêm mới) --- */
+        if ($mode === 'append') {
+            if ($hasGalleryFile) {
                 $this->productModel->uploadGalleryImages($productId, $files['gallery'], $data['product_name']);
             }
+            if ($hasGalleryUrl) {
+                $this->productModel->addGalleryUrls($productId, $galleryUrls);
+            }
         }
 
+        /*************** UPDATE các field còn lại ***************/
         $updated = $this->productModel->updateProduct($productId, $data);
 
         if ($updated) {
             $product = $this->productModel->getProductById($productId, true);
-            Utils::respond(["success" => true, "message" => "Cập nhật sản phẩm thành công.", "product" => $product], 200);
-        } else {
-            Utils::respond(["success" => false, "message" => "Lỗi khi cập nhật hoặc không có thay đổi."], 500);
+            Utils::respond([
+                "success" => true,
+                "message" => "Cập nhật sản phẩm thành công.",
+                "product" => $product
+            ], 200);
         }
+
+        Utils::respond([
+            "success" => false,
+            "message" => "Lỗi khi cập nhật hoặc không có thay đổi."
+        ], 500);
     }
 
     /* ========== HIDE / UNHIDE PRODUCT ========== */

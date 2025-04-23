@@ -4,8 +4,9 @@ $allowed_origins = [
     "http://127.0.0.1:5173",
     "http://localhost:5173",
     "http://localhost:3000",
+    "http://localhost:4173",
     "https://pro-1014-client.vercel.app",
-    "https://cfr-epa-manor-abandoned.trycloudflare.com"
+    "https://cfr-epa-manor-abandoned.trycloudflare.com",
 ];
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? "";
