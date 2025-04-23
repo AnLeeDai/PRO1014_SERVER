@@ -197,6 +197,7 @@ class OrderModel
         $result = ['total' => 0, 'orders' => []];
         $conn   = (new Database())->getConnection();
 
+        /* sort an toàn */
         $allowedSort = ['created_at', 'updated_at', 'status', 'total_price'];
         if (!in_array($sortBy, $allowedSort)) $sortBy = 'created_at';
 
@@ -204,43 +205,34 @@ class OrderModel
         $params = [];
         $where  = [];
 
+        /* ---- lọc theo trạng thái ---- */
         if ($statusFilter !== '') {
-            $where[]           = "o.status = :status";
+            $where[]           = 'o.status = :status';
             $params[':status'] = $statusFilter;
         }
 
-        /* --- Lọc theo search --- */
+        /* ---- lọc theo username ---- */
         if ($search !== '') {
-            if (ctype_digit($search)) {
-                $where[]        = "(o.id = :id
-                                 OR u.user_id = :id
-                                 OR oi.product_id = :id)";
-                $params[':id']  = (int)$search;
-            } else {
-                $where[]        = "(u.username   LIKE :kw
-                                 OR u.full_name  LIKE :kw
-                                 OR u.email      LIKE :kw)";
-                $params[':kw']  = '%' . $search . '%';
-            }
+            $where[]       = 'u.username LIKE :kw';
+            $params[':kw'] = '%' . $search . '%';
         }
 
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
         try {
-            /* ------------ tổng bản ghi ------------ */
+            /* --------- đếm tổng --------- */
             $countSql = "
                 SELECT COUNT(DISTINCT o.id)
                 FROM orders o
-                INNER JOIN users u       ON o.user_id = u.user_id
-                LEFT JOIN order_items oi ON o.id      = oi.order_id
+                INNER JOIN users u ON o.user_id = u.user_id
                 $whereSql
             ";
-            $stmtCount = $conn->prepare($countSql);
-            $stmtCount->execute($params);
-            $result['total'] = (int)$stmtCount->fetchColumn();
+            $stmt = $conn->prepare($countSql);
+            $stmt->execute($params);
+            $result['total'] = (int)$stmt->fetchColumn();
             if ($result['total'] === 0) return $result;
 
-            /* ------------ truy vấn dữ liệu ------------ */
+            /* --------- lấy dữ liệu --------- */
             $dataSql = "
                 SELECT 
                     o.id,
@@ -253,7 +245,6 @@ class OrderModel
                     o.shipping_address,
                     u.username,
                     u.full_name,
-                    u.email,
                     GROUP_CONCAT(
                         JSON_OBJECT(
                             'id',           oi.id,
@@ -266,39 +257,39 @@ class OrderModel
                         ) SEPARATOR '||'
                     ) AS items
                 FROM orders o
-                INNER JOIN users u       ON o.user_id  = u.user_id
-                LEFT JOIN order_items oi ON o.id       = oi.order_id
-                LEFT JOIN products p     ON oi.product_id = p.id
+                INNER JOIN users u        ON o.user_id = u.user_id
+                LEFT  JOIN order_items oi ON o.id      = oi.order_id
+                LEFT  JOIN products p     ON oi.product_id = p.id
                 $whereSql
-                GROUP BY o.id
+                GROUP BY 
+                    o.id, o.user_id, o.total_price, o.status,
+                    o.created_at, o.updated_at, o.payment_method,
+                    o.shipping_address, u.username, u.full_name
                 ORDER BY o.$sortBy DESC
                 LIMIT  :limit OFFSET :offset
             ";
 
-            $stmtData = $conn->prepare($dataSql);
-
-            /* bind động */
+            $stmt = $conn->prepare($dataSql);
             foreach ($params as $k => $v) {
-                $type = is_int($v) ? PDO::PARAM_INT : PDO::PARAM_STR;
-                $stmtData->bindValue($k, $v, $type);
+                $stmt->bindValue($k, $v, PDO::PARAM_STR);
             }
-            $stmtData->bindValue(':limit',  $limit,  PDO::PARAM_INT);
-            $stmtData->bindValue(':offset', $offset, PDO::PARAM_INT);
-            $stmtData->execute();
+            $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
+            $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $stmt->execute();
 
-            $rows = $stmtData->fetchAll(PDO::FETCH_ASSOC);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             /* tách items JSON */
             foreach ($rows as &$row) {
                 $row['items'] = $row['items']
-                    ? array_map(fn($js) => json_decode($js, true), explode('||', $row['items']))
+                    ? array_map(fn($j) => json_decode($j, true), explode('||', $row['items']))
                     : [];
             }
 
             $result['orders'] = $rows;
             return $result;
         } catch (PDOException $e) {
-            error_log("OrderModel::getOrdersPaginated Error: " . $e->getMessage());
+            error_log('OrderModel::getOrdersPaginated -> ' . $e->getMessage());
             return $result;
         }
     }
