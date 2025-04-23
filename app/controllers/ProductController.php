@@ -46,7 +46,7 @@ class ProductController
             $limit,
             $sortBy,
             $search,
-            false,
+            true,
             $categoryId,
             $minPrice,
             $maxPrice,
