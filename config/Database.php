@@ -4,17 +4,15 @@ class Database
 {
     public function getConnection()
     {
-    // Read DB config from environment variables with sensible defaults
-    $host = getenv('DB_HOST') ?: 'localhost';
-    $port = getenv('DB_PORT') ?: '3306';
-    $db_name = getenv('DB_NAME') ?: 'pro1014_schema';
-    $username = getenv('DB_USER') ?: 'root';
-    $password = getenv('DB_PASSWORD') ?: '';
+        $host = 'localhost';
+        $db_name = 'pro1014_schema';
+        $username = 'root';
+        $password = '';
 
         $conn = null;
 
         try {
-            $dsn = "mysql:host=$host;port=$port;dbname=$db_name;charset=utf8mb4";
+            $dsn = "mysql:host=$host;dbname=$db_name;charset=utf8mb4";
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

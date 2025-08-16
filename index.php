@@ -29,7 +29,7 @@ spl_autoload_register(function (string $className) {
 
 // auto add new admin account if not exists
 try {
-    $initAuthModel = new AuthModel();
+    $initAuthModel = new authmodel();
 
     if (!$initAuthModel->hasAdminAccount()) {
         $pwdHash = password_hash('Admin123!', PASSWORD_DEFAULT, ['cost' => 12]);
@@ -55,13 +55,13 @@ try {
     }
 } catch (Throwable $e) {
     error_log('[Auto Init] ' . $e->getMessage());
-    Utils::respond(['success' => false, 'message' => 'Khởi tạo hệ thống thất bại'], 500);
+    Utils::respond(['error' => 'System initialization failed'], 500);
 }
 
 // auto add new default category if not exists
 try {
     // Initialize default admin account
-    $initAuthModel = new AuthModel();
+    $initAuthModel = new authmodel();
 
     if (!$initAuthModel->hasAdminAccount()) {
         $pwdHash = password_hash('Admin123!', PASSWORD_DEFAULT, ['cost' => 12]);
@@ -109,7 +109,7 @@ try {
     }
 } catch (Throwable $e) {
     error_log('[Auto Init] ' . $e->getMessage());
-    Utils::respond(['success' => false, 'message' => 'Khởi tạo hệ thống thất bại'], 500);
+    Utils::respond(['error' => 'System initialization failed'], 500);
 }
 
 $request = trim($_GET['request'] ?? '');
@@ -118,25 +118,25 @@ $method  = strtoupper($_SERVER['REQUEST_METHOD']);
 $routes = require_once __DIR__ . '/routes/api.php';
 
 if (!isset($routes[$request])) {
-    Utils::respond(['success' => false, 'message' => 'Yêu cầu API không hợp lệ (không tìm thấy route).'], 404);
+    Utils::respond(['error' => 'Invalid API request (route not found)'], 404);
 }
 
 if (!isset($routes[$request][$method])) {
     $allowed = implode(', ', array_keys($routes[$request]));
     header("Allow: {$allowed}");
-    Utils::respond(['success' => false, 'message' => "Phương thức không được phép. Cho phép: {$allowed}"], 405);
+    Utils::respond(['error' => "Method Not Allowed. Allowed methods: {$allowed}"], 405);
 }
 
 [$controllerName, $action] = explode('@', $routes[$request][$method]);
 
 if (!class_exists($controllerName)) {
-    Utils::respond(['success' => false, 'message' => 'Lỗi máy chủ nội bộ (thiếu controller).'], 500);
+    Utils::respond(['error' => 'Internal Server Error (controller missing)'], 500);
 }
 
 $controller = new $controllerName();
 
 if (!method_exists($controller, $action)) {
-    Utils::respond(['success' => false, 'message' => 'Lỗi máy chủ nội bộ (thiếu method).'], 500);
+    Utils::respond(['error' => 'Internal Server Error (method missing)'], 500);
 }
 
 try {

@@ -5,34 +5,25 @@ $allowed_origins = [
     "http://localhost:5173",
     "http://localhost:3000",
     "http://localhost:4173",
-    "http://pro1014-server",
-    "http://pro1014-server:8888",
     "https://pro-1014-client.vercel.app",
     "https://atlas-nr-longitude-clerk.trycloudflare.com",
 ];
 
-$allow_all = filter_var(getenv('CORS_ALLOW_ALL') ?: 'false', FILTER_VALIDATE_BOOLEAN);
-$allow_credentials = filter_var(getenv('CORS_ALLOW_CREDENTIALS') ?: 'true', FILTER_VALIDATE_BOOLEAN);
-
 $origin = $_SERVER['HTTP_ORIGIN'] ?? "";
 
-if (!empty($origin)) {
-    if ($allow_all || in_array($origin, $allowed_origins)) {
-        // Echo back the origin and vary on it to support credentials and caches
-        header("Access-Control-Allow-Origin: $origin");
-        header("Vary: Origin");
-        if ($allow_credentials) {
-            header("Access-Control-Allow-Credentials: true");
-        }
-    } else {
+if (in_array($origin, $allowed_origins)) {
+    header("Access-Control-Allow-Origin: $origin");
+    header("Access-Control-Allow-Credentials: true");
+} else {
+    if (!empty($origin)) {
         http_response_code(403);
-        echo json_encode(["success" => false, "message" => "Nguồn (Origin) không được phép."]);
+        echo json_encode(["error" => "Origin not allowed"]);
         exit();
     }
 }
 
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 header("Access-Control-Max-Age: 86400");
 
 if ($_SERVER['REQUEST_METHOD'] == "OPTIONS") {

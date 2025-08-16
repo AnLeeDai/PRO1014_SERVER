@@ -247,75 +247,21 @@ class Utils
 
 
     // --- CÁC HÀM RESPONSE ---
-    public static function respond(mixed $payload, int $status = 200): void
+    public static function respond(mixed $data, int $status = 200): void
     {
         if (headers_sent($file, $line)) {
             error_log("Utils Error: Headers already sent in $file on line $line.");
-            echo '{"success": false, "message": "Lỗi cấu hình máy chủ."}';
+            echo '{"success": false, "message": "Server configuration error."}';
             die();
         }
-
-        // Normalize payload to a consistent response envelope
-        $requestUri = $_SERVER['REQUEST_URI'] ?? '';
-        $nowIso = gmdate('c');
-
-        if (!is_array($payload)) {
-            $payload = ['data' => $payload];
-        }
-
-    $success = isset($payload['success']) ? (bool)$payload['success'] : ($status >= 200 && $status < 300);
-    $message = $payload['message'] ?? ($payload['error'] ?? ($success ? 'Thành công' : 'Lỗi'));
-        $code    = $payload['code'] ?? null;
-
-        // Gather data: prefer 'data' if present; otherwise pack non-meta keys
-        $data = $payload['data'] ?? null;
-        if ($data === null) {
-            $metaKeys = ['success','message','error','errors','filters','pagination','code'];
-            $data = [];
-            foreach ($payload as $k => $v) {
-                if (!in_array($k, $metaKeys, true)) {
-                    $data[$k] = $v;
-                }
-            }
-            if ($data === []) {
-                $data = $success ? (object)[] : [];
-            }
-        }
-
-        $errors = $payload['errors'] ?? null;
-        $filters = $payload['filters'] ?? null;
-        $pagination = $payload['pagination'] ?? null;
-
-        $envelope = [
-            'success' => $success,
-            'message' => $message,
-            'code'    => $code,
-            'data'    => $data,
-            'errors'  => $errors,
-            'meta'    => [
-                'filters'    => $filters,
-                'pagination' => $pagination,
-                'path'       => $requestUri,
-                'timestamp'  => $nowIso,
-            ],
-        ];
-
-        // Backward compatibility: keep existing top-level filters/pagination if present
-        if ($filters !== null) {
-            $envelope['filters'] = $filters;
-        }
-        if ($pagination !== null) {
-            $envelope['pagination'] = $pagination;
-        }
-
         http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');
-        $jsonData = json_encode($envelope, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $jsonData = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
         if ($jsonData === false) {
             $jsonError = json_last_error_msg();
-            error_log("Utils Error: Không thể mã hóa JSON. Lỗi: " . $jsonError);
+            error_log("Utils Error: Failed to encode JSON. Error: " . $jsonError);
             http_response_code(500);
-            echo '{"success": false, "message": "Lỗi máy chủ khi xử lý dữ liệu phản hồi.", "json_error": "' . $jsonError . '"}';
+            echo '{"success": false, "message": "Server error processing response data.", "json_error": "' . $jsonError . '"}';
         } else {
             echo $jsonData;
         }
@@ -331,13 +277,6 @@ class Utils
             $response['pagination'] = null;
         }
         $response['data'] = $success ? $data : [];
-        // Add meta for consistency even if builder used directly
-        $response['meta'] = [
-            'filters'    => $response['filters'],
-            'pagination' => $response['pagination'],
-            'path'       => $_SERVER['REQUEST_URI'] ?? '',
-            'timestamp'  => gmdate('c')
-        ];
         return $response;
     }
 }
